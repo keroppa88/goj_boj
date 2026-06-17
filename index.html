@@ -1,0 +1,2941 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>東証部門別売買</title>
+  <style>
+    :root{
+      --bg:#f5f5f7;
+      --card:#ffffff;
+      --text:#1f2328;
+      --muted:#6b7280;
+      --axisDark:#111827;
+      --line:#e5e7eb;
+      --chip:#f3f4f6;
+      --shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    /* 色テーマ：bg-dark＝背景のみ黒、full-dark＝チャート以外すべて黒・文字白 */
+    body.bg-dark{ --bg:#000000; }
+    body.full-dark{
+      --bg:#000000;
+      --card:#0a0a0a;
+      --text:#f5f5f5;
+      --muted:#c4c4c4;
+      --line:#3a3a3a;
+      --chip:#1a1a1a;
+      --shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    body.full-dark select,
+    body.full-dark .toggle-btn,
+    body.full-dark .help-btn,
+    body.full-dark .sel,
+    body.full-dark .color-picker{
+      background:#111;
+      color:#f5f5f5;
+      border-color:#444;
+    }
+    body.full-dark .toggle-btn:hover,
+    body.full-dark .help-btn:hover{ background:#222; }
+    body.full-dark .sel .slot{ color:#c4c4c4; }
+    body.full-dark .label{ color:#f5f5f5; }
+    body.full-dark{ --axisDark:#f5f5f5; }
+    body.full-dark .legend-item{ color:#e5e5e5; }
+    body.full-dark .chartOverlay{ background:rgba(0,0,0,0.82); border-color:#444; }
+    body.full-dark .chartOverlay .ovTitle{ color:#f5f5f5; }
+    body.full-dark .resizeHandle,
+    body.full-dark .paneDiv{ background:#111; border-color:#3a3a3a; }
+    body.full-dark .resizeHandle::before,
+    body.full-dark .paneDiv::before{ background:#666; }
+    body.full-dark .sidePane{ background:#000; }
+    body.full-dark .selRow,
+    body.full-dark .cardMain{ background:#0a0a0a; color:#f5f5f5; }
+    body.full-dark .canvasBox{ background:#000; } /* チャート背景も黒（線・棒の色は維持） */
+    body{
+      margin:0; padding:16px;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:var(--bg); color:var(--text);
+    }
+    .wrap{ width:100%; margin:0 auto; }
+    .card{
+      background:var(--card); border:1px solid var(--line);
+      border-radius:14px; box-shadow:var(--shadow);
+      padding:14px 16px;
+      max-width:1400px;
+      margin:0 auto;
+    }
+    .header{
+      display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    }
+    .header h1{ margin:0; font-size:28px; letter-spacing:0.2px; }
+    .sub{ font-size:20px; color:var(--muted); }
+    .headerRight{
+      margin-left:auto;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .rows{ margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+
+    .controls{
+      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    }
+    .group{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      background:#fafafa;
+      border-radius:12px;
+    }
+    .label{ font-weight:700; font-size:20px; color:#374151; }
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px;
+      border:1px solid var(--line);
+      background:var(--chip);
+      border-radius:999px;
+      font-size:20px; color:#111827;
+      white-space:nowrap;
+    }
+    .chip .muted{ color:var(--muted); }
+
+    .grid2{ display:grid; grid-template-columns: 1fr; gap:12px; margin-top:12px; }
+    .chartCard{ border:1px solid var(--line); border-radius:12px; background:#fff; overflow:hidden; }
+    .cardMain{ display:flex; flex-direction:column; }
+    /* チャート本体＋左右の白スペース（幅はドラッグで調整）＋縦ボタン列 */
+    .chartRow{ position:relative; display:flex; align-items:stretch; }
+    .canvasBox{ flex:1 1 auto; min-width:0; }
+    .sidePane{
+      flex:0 0 auto;
+      background:#fff;
+    }
+    .leftPane{ width:0; }
+    .rightPane{ width:230px; }
+    /* 縦の仕切り：横にドラッグして隣のスペース幅を調整 */
+    .paneDiv{
+      flex:0 0 9px;
+      cursor:ew-resize;
+      background:#eef1f5;
+      border-left:1px solid var(--line);
+      border-right:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center;
+      touch-action:none;
+      user-select:none;
+    }
+    .paneDiv::before{
+      content:"";
+      width:3px; height:26px;
+      border-radius:2px;
+      background:#c3c9d4;
+    }
+    .paneDiv:hover{ background:#e2e7ee; }
+    .paneDiv:hover::before{ background:#9aa3b2; }
+    .btnCol{
+      position:absolute; top:6px; right:6px; z-index:7;
+      display:flex; flex-direction:column; gap:5px;
+    }
+    .btnCol .toggle-btn{ width:35px; height:35px; font-size:24px; }
+    /* 折りたたみ時：白い領域ごと消して＋ボタンだけ残す */
+    .chartCard.collapsed .canvasBox,
+    .chartCard.collapsed .sidePane,
+    .chartCard.collapsed .paneDiv,
+    .chartCard.collapsed .chartOverlay,
+    .chartCard.collapsed .upBtn,
+    .chartCard.collapsed .downBtn,
+    .chartCard.collapsed .selBtn,
+    .chartCard.collapsed .dateBtn{ display:none; }
+    .chartCard.collapsed .chartRow{ height:47px; }
+
+    .legend{ display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+    .legend-item{ display:flex; align-items:center; gap:6px; font-size:calc(18px * var(--ovScale, 1)); color:#374151; }
+    .swatch{ width:calc(18px * var(--ovScale, 1)); height:calc(18px * var(--ovScale, 1)); border-radius:3px; border:1px solid rgba(0,0,0,0.15); }
+
+    .selRow{
+      display:flex;
+      gap:8px;
+      align-items:flex-start;
+      width:100%;
+      padding:8px 0;
+    }
+    #tseSelContainer, #idxSelContainer{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    /* 増減・政府統計チャートの表示項目は横4×縦2のグリッド */
+    #barSelContainer, #bojSelContainer{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:8px;
+      width:100%;
+    }
+    #barSelContainer select, #bojSelContainer select{
+      min-width:0;
+      flex:1;
+      width:100%;
+    }
+    #tseSelContainer.hidden, #idxSelContainer.hidden{
+      display:none;
+    }
+    .sel{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 8px;
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:10px;
+    }
+    .sel .slot{
+      width:26px;
+      text-align:right;
+      font-size:18px;
+      color:var(--muted);
+      flex:0 0 auto;
+    }
+    #idxSlotLabel{
+      width:auto;
+      text-align:left;
+      white-space:nowrap;
+    }
+    select{
+      min-width:180px;
+      padding:5px 6px;
+      border:1px solid #cfd4dc;
+      border-radius:8px;
+      background:#fff;
+      font-size:20px;
+    }
+    .color-picker{
+      width:38px;
+      height:38px;
+      border:1px solid #cfd4dc;
+      border-radius:6px;
+      padding:0;
+      cursor:pointer;
+      background:none;
+    }
+    .show-check{
+      width:26px;
+      height:26px;
+      margin-left:4px;
+      cursor:pointer;
+      accent-color:#2563eb;
+    }
+    .sel.disabled{
+      opacity:0.5;
+    }
+    .sel.disabled .slot{
+      color:#9ca3af;
+    }
+
+    .canvasBox{
+      position:relative; background:#fff;
+      overflow:hidden;
+      min-height:120px;
+    }
+    /* チャート下端のドラッグハンドル（上下に動かして高さ調節） */
+    .resizeHandle{
+      height:10px;
+      cursor:ns-resize;
+      background:#eef1f5;
+      border-top:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      touch-action:none;
+      user-select:none;
+    }
+    .resizeHandle::before{
+      content:"";
+      width:44px;
+      height:3px;
+      border-radius:2px;
+      background:#c3c9d4;
+    }
+    .resizeHandle:hover{ background:#e2e7ee; }
+    .resizeHandle:hover::before{ background:#9aa3b2; }
+    .chartCard.collapsed .resizeHandle{ display:none; }
+    canvas{ display:block; width:100%; height:100%; cursor:crosshair; }
+    .chartCard.collapsed .selRow,
+    .chartCard.collapsed .canvasBox{ display:none; }
+    .selRow.hidden{ display:none; }
+    .sel-toggle-btn{
+      width:38px; height:38px;
+      font-size:22px;
+    }
+
+    .toggle-btn{
+      width:44px; height:44px;
+      border:1px solid #cfd4dc;
+      border-radius:6px;
+      background:#fff;
+      font-size:30px;
+      font-weight:bold;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#374151;
+      flex-shrink:0;
+    }
+    .toggle-btn:hover{
+      background:#f3f4f6;
+    }
+    /* チャート領域内のオーバーレイ（題名＋凡例、ドラッグで移動可能） */
+    .chartOverlay{
+      position:absolute; left:12px; top:8px; z-index:5;
+      background:rgba(255,255,255,0.88);
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:6px 22px 6px 12px;
+      cursor:move;
+      user-select:none;
+      touch-action:none;
+      max-width:90%;
+      min-width:120px;
+    }
+    /* 右端のつまみ：横にドラッグして幅を変更（狭くすると項目が縦並びになる） */
+    .chartOverlay .ovResize{
+      position:absolute; top:0; right:0; bottom:0;
+      width:14px;
+      cursor:ew-resize;
+      border-radius:0 10px 10px 0;
+    }
+    .chartOverlay .ovResize::before{
+      content:"";
+      position:absolute; top:50%; right:5px;
+      width:3px; height:24px;
+      margin-top:-12px;
+      border-radius:2px;
+      background:#c3c9d4;
+    }
+    .chartOverlay .ovResize:hover::before{ background:#9aa3b2; }
+    .chartOverlay .ovTitle{ font-weight:700; font-size:calc(18px * var(--ovScale, 1)); color:#111827; }
+    /* 右下のつまみ：斜めドラッグで文字の大きさ（拡大縮小）を変更 */
+    .chartOverlay .ovScale{
+      position:absolute; right:0; bottom:0;
+      width:18px; height:18px;
+      cursor:nwse-resize;
+      border-radius:0 0 10px 0;
+    }
+    .chartOverlay .ovScale::before{
+      content:"";
+      position:absolute; right:4px; bottom:4px;
+      width:10px; height:10px;
+      border-right:3px solid #c3c9d4;
+      border-bottom:3px solid #c3c9d4;
+      border-radius:0 0 3px 0;
+    }
+    .chartOverlay .ovScale:hover::before{ border-color:#9aa3b2; }
+    #idxBox{ height:240px; }
+    #tseBox{ height:420px; }
+    #barBox{ height:280px; }
+
+    .tooltip{
+      position:fixed;
+      background:rgba(255,255,255,0.98);
+      border:1px solid #9ca3af; padding:8px 10px; border-radius:10px;
+      font-size:20px; pointer-events:none; display:none;
+      box-shadow:0 8px 22px rgba(0,0,0,0.18);
+      z-index:1000; line-height:1.45; white-space:nowrap;
+    }
+
+    .help-btn{
+      padding:6px 12px;
+      border:1px solid #cfd4dc;
+      border-radius:8px;
+      background:#fff;
+      font-size:20px;
+      cursor:pointer;
+      color:#374151;
+      margin-left:12px;
+    }
+    .help-btn:hover{
+      background:#f3f4f6;
+    }
+
+    .modal-overlay{
+      position:fixed;
+      top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.5);
+      display:none;
+      justify-content:center;
+      align-items:center;
+      z-index:2000;
+    }
+    .modal-overlay.show{
+      display:flex;
+    }
+    .modal-content{
+      background:#fff;
+      border-radius:12px;
+      padding:20px 24px;
+      max-width:500px;
+      width:90%;
+      box-shadow:0 10px 40px rgba(0,0,0,0.2);
+    }
+    .modal-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:16px;
+    }
+    .modal-title{
+      font-weight:700;
+      font-size:28px;
+      color:#111827;
+    }
+    .modal-close{
+      background:none;
+      border:none;
+      font-size:40px;
+      cursor:pointer;
+      color:#6b7280;
+      line-height:1;
+    }
+    .modal-close:hover{
+      color:#111827;
+    }
+    .modal-body{
+      font-size:22px;
+      line-height:1.7;
+      color:#374151;
+    }
+    .modal-body p{
+      margin:0 0 10px 0;
+    }
+    .modal-body a{
+      color:#2563eb;
+      word-break:break-all;
+    }
+    .modal-body .section-title{
+      font-weight:700;
+      margin-top:16px;
+      margin-bottom:8px;
+      color:#111827;
+    }
+    .gran-btn{ cursor:pointer; }
+    .gran-btn.active{ background:#2563eb; color:#fff; border-color:#2563eb; }
+    body.full-dark .gran-btn.active{ background:#3b82f6; border-color:#3b82f6; }
+    .credit{ font-size:13px; color:#6b7280; margin-top:10px; line-height:1.6; }
+    body.full-dark .credit{ color:#9aa3b2; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <h1>株価指数 + 部門別売買動向チャート</h1>
+        <span class="sub" id="status">読込中…</span>
+      </div>
+
+      <div class="rows">
+        <div class="controls">
+          <span class="chip" id="latestChip"><span class="muted">最新</span> -</span>
+          <span class="chip" id="viewChip"><span class="muted">表示範囲</span> -</span>
+          <span id="granBtns" style="display:inline-flex; gap:4px; margin-left:8px;" title="チャート全体の時間軸の粒度を切り替え（4段連動）">
+            <button class="gran-btn toggle-btn" data-gran="day"   style="width:auto; padding:0 10px; font-size:20px;">日次</button>
+            <button class="gran-btn toggle-btn" data-gran="week"  style="width:auto; padding:0 10px; font-size:20px;">週次</button>
+            <button class="gran-btn toggle-btn" data-gran="month" style="width:auto; padding:0 10px; font-size:20px;">月次</button>
+          </span>
+          <button id="dateLineBtn" class="toggle-btn" style="width:auto; padding:0 12px; font-size:20px; margin-left:8px;" title="押すごとに分割数が5→10→20→40→なしと切り替わる">日付ライン 5</button>
+          <label style="display:flex; align-items:center; gap:4px; margin-left:8px; font-size:20px; cursor:pointer;">
+            <input type="checkbox" id="showFullDate" checked style="width:16px; height:16px; accent-color:#2563eb;">
+            日付表示
+          </label>
+          <button class="help-btn" id="helpBtn">説明</button>
+          <button class="help-btn" id="themeBtn" title="押すごとに 背景黒 → 全体黒 → 元に戻る">色</button>
+        </div>
+
+        <div class="grid2">
+          <!-- 株価指数チャート（プルダウン1つ） -->
+          <div class="chartCard" id="idxCard">
+            <div class="cardMain">
+            <div class="selRow" id="idxSelRow" style="padding:8px 12px;">
+              <div id="idxSelContainer">
+                <div class="sel"><div class="slot">1</div><select id="idxSel1"></select><input type="color" class="color-picker" id="idxColor1" value="#2563eb"><input type="checkbox" class="show-check" id="idxCheck1" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">2</div><select id="idxSel2"></select><input type="color" class="color-picker" id="idxColor2" value="#FF4B00"><input type="checkbox" class="show-check" id="idxCheck2" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">3</div><select id="idxSel3"></select><input type="color" class="color-picker" id="idxColor3" value="#03AF7A"><input type="checkbox" class="show-check" id="idxCheck3" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">4</div><select id="idxSel4"></select><input type="color" class="color-picker" id="idxColor4" value="#4DC4FF"><input type="checkbox" class="show-check" id="idxCheck4" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">5</div><select id="idxSel5"></select><input type="color" class="color-picker" id="idxColor5" value="#F6AA00"><input type="checkbox" class="show-check" id="idxCheck5" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">6</div><select id="idxSel6"></select><input type="color" class="color-picker" id="idxColor6" value="#990099"><input type="checkbox" class="show-check" id="idxCheck6" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">7</div><select id="idxSel7"></select><input type="color" class="color-picker" id="idxColor7" value="#84919E"><input type="checkbox" class="show-check" id="idxCheck7" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">8</div><select id="idxSel8"></select><input type="color" class="color-picker" id="idxColor8" value="#000000"><input type="checkbox" class="show-check" id="idxCheck8" checked title="表示/非表示"></div>
+              </div>
+            </div>
+            <div class="chartRow">
+              <div class="sidePane leftPane" data-key="idx" data-side="l"></div>
+              <div class="paneDiv" data-key="idx" data-side="l" title="ドラッグで左スペースの幅を調整"></div>
+              <div class="canvasBox" id="idxBox">
+                <canvas id="idxChart"></canvas>
+              </div>
+              <div class="paneDiv" data-key="idx" data-side="r" title="ドラッグで右スペースの幅を調整"></div>
+              <div class="sidePane rightPane" data-key="idx" data-side="r"></div>
+<div class="chartOverlay" data-pos="idx" title="ドラッグで移動">
+                <div class="ovTitle">株価指数</div>
+                <div class="legend" id="idxLegend"></div><div class="ovResize" title="ドラッグで幅を変更"></div><div class="ovScale" title="ドラッグで文字の大きさを変更"></div>
+              </div>
+              <div class="btnCol">
+                <button class="toggle-btn" id="idxToggleBtn" title="チャートの表示/非表示">－</button>
+                <button class="toggle-btn upBtn" data-card="idxCard" title="チャートを上へ移動">↑</button>
+                <button class="toggle-btn downBtn" data-card="idxCard" title="チャートを下へ移動">↓</button>
+                <button class="toggle-btn selBtn" data-row="idxSelRow" title="項目選択欄の表示/非表示">－</button>
+                <button class="toggle-btn dateBtn" data-key="idx" title="時系列（年月日）の表示/非表示">－</button>
+              </div>
+            </div>
+            <div class="resizeHandle" data-target="idxBox" title="ドラッグで高さ調節"></div>
+            </div>
+          </div>
+
+          <!-- 部門別売買動向（累積）チャート（プルダウン8個、色選択付き） -->
+          <div class="chartCard" id="tseCard">
+            <div class="cardMain">
+            <div class="selRow" id="tseSelRow" style="padding:8px 12px;">
+              <div id="tseSelContainer">
+                <div class="sel"><div class="slot">1</div><select id="tseSel1"></select><input type="color" class="color-picker" id="tseColor1" value="#FF4B00"><input type="checkbox" class="show-check" id="tseCheck1" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">2</div><select id="tseSel2"></select><input type="color" class="color-picker" id="tseColor2" value="#005AFF"><input type="checkbox" class="show-check" id="tseCheck2" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">3</div><select id="tseSel3"></select><input type="color" class="color-picker" id="tseColor3" value="#03AF7A"><input type="checkbox" class="show-check" id="tseCheck3" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">4</div><select id="tseSel4"></select><input type="color" class="color-picker" id="tseColor4" value="#4DC4FF"><input type="checkbox" class="show-check" id="tseCheck4" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">5</div><select id="tseSel5"></select><input type="color" class="color-picker" id="tseColor5" value="#F6AA00"><input type="checkbox" class="show-check" id="tseCheck5" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">6</div><select id="tseSel6"></select><input type="color" class="color-picker" id="tseColor6" value="#990099"><input type="checkbox" class="show-check" id="tseCheck6" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">7</div><select id="tseSel7"></select><input type="color" class="color-picker" id="tseColor7" value="#84919E"><input type="checkbox" class="show-check" id="tseCheck7" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">8</div><select id="tseSel8"></select><input type="color" class="color-picker" id="tseColor8" value="#000000"><input type="checkbox" class="show-check" id="tseCheck8" checked title="表示/非表示"></div>
+              </div>
+            </div>
+            <div class="chartRow">
+              <div class="sidePane leftPane" data-key="tse" data-side="l"></div>
+              <div class="paneDiv" data-key="tse" data-side="l" title="ドラッグで左スペースの幅を調整"></div>
+              <div class="canvasBox" id="tseBox">
+                <canvas id="tseChart"></canvas>
+              </div>
+              <div class="paneDiv" data-key="tse" data-side="r" title="ドラッグで右スペースの幅を調整"></div>
+              <div class="sidePane rightPane" data-key="tse" data-side="r"></div>
+<div class="chartOverlay" data-pos="tse" title="ドラッグで移動">
+                <div class="ovTitle">部門別売買動向(累積)</div>
+                <div class="legend" id="tseLegend"></div><div class="ovResize" title="ドラッグで幅を変更"></div><div class="ovScale" title="ドラッグで文字の大きさを変更"></div>
+              </div>
+              <div class="btnCol">
+                <button class="toggle-btn" id="tseToggleBtn" title="チャートの表示/非表示">－</button>
+                <button class="toggle-btn upBtn" data-card="tseCard" title="チャートを上へ移動">↑</button>
+                <button class="toggle-btn downBtn" data-card="tseCard" title="チャートを下へ移動">↓</button>
+                <button class="toggle-btn selBtn" data-row="tseSelRow" title="項目選択欄の表示/非表示">－</button>
+                <button class="toggle-btn dateBtn" data-key="tse" title="時系列（年月日）の表示/非表示">－</button>
+              </div>
+            </div>
+            <div class="resizeHandle" data-target="tseBox" title="ドラッグで高さ調節"></div>
+            </div>
+          </div>
+
+          <!-- 部門別売買動向（増減）チャート（発表ごとの数値を縦棒で表示） -->
+          <div class="chartCard" id="barCard">
+            <div class="cardMain">
+            <div class="selRow" id="barSelRow" style="padding:8px 12px;">
+              <div id="barSelContainer">
+                <div class="sel"><div class="slot">1</div><select id="barSel1"></select><input type="color" class="color-picker" id="barColor1" value="#FF4B00"><input type="checkbox" class="show-check" id="barCheck1" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">2</div><select id="barSel2"></select><input type="color" class="color-picker" id="barColor2" value="#005AFF"><input type="checkbox" class="show-check" id="barCheck2" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">3</div><select id="barSel3"></select><input type="color" class="color-picker" id="barColor3" value="#03AF7A"><input type="checkbox" class="show-check" id="barCheck3" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">4</div><select id="barSel4"></select><input type="color" class="color-picker" id="barColor4" value="#4DC4FF"><input type="checkbox" class="show-check" id="barCheck4" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">5</div><select id="barSel5"></select><input type="color" class="color-picker" id="barColor5" value="#F6AA00"><input type="checkbox" class="show-check" id="barCheck5" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">6</div><select id="barSel6"></select><input type="color" class="color-picker" id="barColor6" value="#990099"><input type="checkbox" class="show-check" id="barCheck6" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">7</div><select id="barSel7"></select><input type="color" class="color-picker" id="barColor7" value="#84919E"><input type="checkbox" class="show-check" id="barCheck7" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">8</div><select id="barSel8"></select><input type="color" class="color-picker" id="barColor8" value="#000000"><input type="checkbox" class="show-check" id="barCheck8" checked title="表示/非表示"></div>
+              </div>
+            </div>
+            <div class="chartRow">
+              <div class="sidePane leftPane" data-key="bar" data-side="l"></div>
+              <div class="paneDiv" data-key="bar" data-side="l" title="ドラッグで左スペースの幅を調整"></div>
+              <div class="canvasBox" id="barBox">
+                <canvas id="barChart"></canvas>
+              </div>
+              <div class="paneDiv" data-key="bar" data-side="r" title="ドラッグで右スペースの幅を調整"></div>
+              <div class="sidePane rightPane" data-key="bar" data-side="r"></div>
+<div class="chartOverlay" data-pos="bar" title="ドラッグで移動">
+                <div class="ovTitle">部門別売買動向(増減)</div>
+                <div class="legend" id="barLegend"></div><div class="ovResize" title="ドラッグで幅を変更"></div><div class="ovScale" title="ドラッグで文字の大きさを変更"></div>
+              </div>
+              <div class="btnCol">
+                <button class="toggle-btn" id="barToggleBtn" title="チャートの表示/非表示">－</button>
+                <button class="toggle-btn upBtn" data-card="barCard" title="チャートを上へ移動">↑</button>
+                <button class="toggle-btn downBtn" data-card="barCard" title="チャートを下へ移動">↓</button>
+                <button class="toggle-btn selBtn" data-row="barSelRow" title="項目選択欄の表示/非表示">－</button>
+                <button class="toggle-btn dateBtn" data-key="bar" title="時系列（年月日）の表示/非表示">－</button>
+              </div>
+            </div>
+            <div class="resizeHandle" data-target="barBox" title="ドラッグで高さ調節"></div>
+            </div>
+          </div>
+
+          <!-- 政府統計（日銀API）チャート（プルダウン8個、色選択付き） -->
+          <div class="chartCard" id="bojCard">
+            <div class="cardMain">
+            <div class="selRow" id="bojSelRow" style="padding:8px 12px;">
+              <div id="bojSelContainer">
+                <div class="sel"><div class="slot">1</div><select id="bojSel1"></select><input type="color" class="color-picker" id="bojColor1" value="#2563eb"><input type="checkbox" class="show-check" id="bojCheck1" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">2</div><select id="bojSel2"></select><input type="color" class="color-picker" id="bojColor2" value="#FF4B00"><input type="checkbox" class="show-check" id="bojCheck2" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">3</div><select id="bojSel3"></select><input type="color" class="color-picker" id="bojColor3" value="#03AF7A"><input type="checkbox" class="show-check" id="bojCheck3" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">4</div><select id="bojSel4"></select><input type="color" class="color-picker" id="bojColor4" value="#4DC4FF"><input type="checkbox" class="show-check" id="bojCheck4" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">5</div><select id="bojSel5"></select><input type="color" class="color-picker" id="bojColor5" value="#F6AA00"><input type="checkbox" class="show-check" id="bojCheck5" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">6</div><select id="bojSel6"></select><input type="color" class="color-picker" id="bojColor6" value="#990099"><input type="checkbox" class="show-check" id="bojCheck6" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">7</div><select id="bojSel7"></select><input type="color" class="color-picker" id="bojColor7" value="#84919E"><input type="checkbox" class="show-check" id="bojCheck7" checked title="表示/非表示"></div>
+                <div class="sel"><div class="slot">8</div><select id="bojSel8"></select><input type="color" class="color-picker" id="bojColor8" value="#000000"><input type="checkbox" class="show-check" id="bojCheck8" checked title="表示/非表示"></div>
+              </div>
+            </div>
+            <div class="chartRow">
+              <div class="sidePane leftPane" data-key="boj" data-side="l"></div>
+              <div class="paneDiv" data-key="boj" data-side="l" title="ドラッグで左スペースの幅を調整"></div>
+              <div class="canvasBox" id="bojBox">
+                <canvas id="bojChart"></canvas>
+              </div>
+              <div class="paneDiv" data-key="boj" data-side="r" title="ドラッグで右スペースの幅を調整"></div>
+              <div class="sidePane rightPane" data-key="boj" data-side="r"></div>
+<div class="chartOverlay" data-pos="boj" title="ドラッグで移動">
+                <div class="ovTitle">日銀統計</div>
+                <div class="legend" id="bojLegend"></div><div class="ovResize" title="ドラッグで幅を変更"></div><div class="ovScale" title="ドラッグで文字の大きさを変更"></div>
+              </div>
+              <div class="btnCol">
+                <button class="toggle-btn" id="bojToggleBtn" title="チャートの表示/非表示">－</button>
+                <button class="toggle-btn upBtn" data-card="bojCard" title="チャートを上へ移動">↑</button>
+                <button class="toggle-btn downBtn" data-card="bojCard" title="チャートを下へ移動">↓</button>
+                <button class="toggle-btn selBtn" data-row="bojSelRow" title="項目選択欄の表示/非表示">－</button>
+                <button class="toggle-btn dateBtn" data-key="boj" title="時系列（年月日）の表示/非表示">－</button>
+              </div>
+            </div>
+            <div class="resizeHandle" data-target="bojBox" title="ドラッグで高さ調節"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="credit">
+          このサービスは、日本銀行時系列統計データ検索サイトのAPI機能を使用しています。サービスの内容は日本銀行によって保証されたものではありません。<br>
+          日銀統計（最下段）：日本銀行 時系列統計データ検索サイト ／ 株価指数・部門別売買動向：JPX・J-Quants API
+        </div>
+      </div>
+    </div>
+
+    <div id="tooltip" class="tooltip"></div>
+
+    <!-- 説明モーダル -->
+    <div id="helpModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">説明</div>
+          <button class="modal-close" id="modalClose">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>投資部門別売買動向をJPX・APIで取得。</p>
+          <p><strong>更新タイミング</strong><br>
+          投資部門別情報・週次の第4営業日＝木曜日の18:00頃<br>
+          通常は木曜日、祝日等非営業日がある場合はその分後ろ倒し。</p>
+          <div class="section-title">各項目定義</div>
+    <p>総計<br>
+        ├─自己計<br>
+        └─委託計<br>
+    　      ├─個人<br>
+  　        ├─海外投資家<br>
+   　       ├─証券会社<br>
+   　       ├─投資信託<br>
+   　       ├─金融<br>
+    　      　├─生保・損保<br>
+    　      　├─都銀・地銀等<br>
+   　       　├─信託銀行<br>
+   　       　├─その他金融機関<br>
+   　       ├─法人<br>
+   　       　├─事業法人<br>
+   　       　└─その他法人</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ========= colors ========= */
+const DEFAULT_COLORS = ["#FF4B00","#005AFF","#03AF7A","#4DC4FF","#F6AA00","#990099","#84919E","#000000"];
+const MAX_DISPLAY = 700;
+// 折れ線グラフ描画領域の左上に出すグレー題名
+const CHART_TITLES = {
+  idx: "株価指数",
+  tse: "部門別売買動向(累積)",
+  bar: "部門別売買動向(増減)",
+  boj: "日銀統計",
+};
+const TSE_SELECTION_COUNT = 8;
+
+/* ========= TSEPrime: 英語列名 -> 日本語表示名 ========= */
+const TSEPRIME_FIELD_MAP = {
+  PropSell: "自己計_売",   PropBuy:"自己計_買",   PropTot:"自己計_合計",   PropBal:"自己計_差引",
+  BrkSell: "委託計_売",    BrkBuy:"委託計_買",    BrkTot:"委託計_合計",    BrkBal:"委託計_差引",
+  TotSell: "総計_売",      TotBuy:"総計_買",      TotTot:"総計_合計",      TotBal:"総計_差引",
+  IndSell: "個人_売",      IndBuy:"個人_買",      IndTot:"個人_合計",      IndBal:"個人_差引",
+  FrgnSell:"海外投資家_売",FrgnBuy:"海外投資家_買",FrgnTot:"海外投資家_合計",FrgnBal:"海外投資家_差引",
+  SecCoSell:"証券会社_売", SecCoBuy:"証券会社_買", SecCoTot:"証券会社_合計", SecCoBal:"証券会社_差引",
+  InvTrSell:"投資信託_売", InvTrBuy:"投資信託_買", InvTrTot:"投資信託_合計", InvTrBal:"投資信託_差引",
+  BusCoSell:"事業法人_売", BusCoBuy:"事業法人_買", BusCoTot:"事業法人_合計", BusCoBal:"事業法人_差引",
+  OthCoSell:"その他法人_売",OthCoBuy:"その他法人_買",OthCoTot:"その他法人_合計",OthCoBal:"その他法人_差引",
+  InsCoSell:"生保・損保_売",InsCoBuy:"生保・損保_買",InsCoTot:"生保・損保_合計",InsCoBal:"生保・損保_差引",
+  BankSell:"都銀・地銀等_売",BankBuy:"都銀・地銀等_買",BankTot:"都銀・地銀等_合計",BankBal:"都銀・地銀等_差引",
+  TrstBnkSell:"信託銀行_売",TrstBnkBuy:"信託銀行_買",TrstBnkTot:"信託銀行_合計",TrstBnkBal:"信託銀行_差引",
+  OthFinSell:"その他金融機関_売",OthFinBuy:"その他金融機関_買",OthFinTot:"その他金融機関_合計",OthFinBal:"その他金融機関_差引"
+};
+
+/* 差引項目のリスト（累積計算用） */
+const BAL_FIELDS = [
+  "自己計_差引", "委託計_差引", "総計_差引", "個人_差引",
+  "海外投資家_差引", "証券会社_差引", "投資信託_差引", "事業法人_差引",
+  "その他法人_差引", "生保・損保_差引", "都銀・地銀等_差引", "信託銀行_差引", "その他金融機関_差引"
+];
+
+/* ========= state ========= */
+let idxRows = [];
+let tseRows = [];
+let idxDates = [];
+let tseDates = [];
+let globalDates = [];
+
+let displayCount = 200;
+let offsetX = 0;
+let dateLineDivisions = 5; // 日付ライン分割数（5→10→20→40→0でサイクル）
+let showFullDate = true;
+
+let isDragging = false;
+let dragStartX = 0;
+let dragStartOffset = 0;
+let dragCanvas = null;
+
+let idxCanvas, idxCtx, tseCanvas, tseCtx, tooltip;
+
+let idxAvail = [];
+let tseAvail = [];
+
+const IDX_DEFAULT_COLORS = ["#2563eb", "#FF4B00", "#03AF7A", "#4DC4FF", "#F6AA00", "#990099", "#84919E", "#000000"];
+let idxKeys = new Array(TSE_SELECTION_COUNT).fill("");
+let idxColors = [...IDX_DEFAULT_COLORS];
+let idxVisible = new Array(TSE_SELECTION_COUNT).fill(true);
+let tseKeys = new Array(TSE_SELECTION_COUNT).fill("");
+let tseColors = [...DEFAULT_COLORS];
+let tseVisible = new Array(TSE_SELECTION_COUNT).fill(true);
+
+let idxData = null;
+let tseData = null;
+
+let barData = null;
+let barCanvas, barCtx;
+let barAvail = [];
+let cumAvail = [];
+let barKeys = new Array(TSE_SELECTION_COUNT).fill("");
+let barColors = [...DEFAULT_COLORS];
+let barVisible = new Array(TSE_SELECTION_COUNT).fill(true);
+
+let hoverDateIdx = null;     // 全チャート共有の十字カーソル位置（表示インデックス）
+let dateLabelsHidden = {idx:false, tse:false, bar:false, boj:false}; // チャートごとの時系列（年月日）ラベル非表示
+let tseDateMeta = new Map(); // EnDate -> {st: StDate, en: EnDate, pub: PubDate}
+
+/* ========= 政府統計（日銀API）state ========= */
+let bojRows = [];            // {date, name(表示名), value}
+let bojCanvas, bojCtx;
+let bojAvail = [];           // プルダウンに出す表示名の一覧（全大分類）
+let bojAgg = new Map();      // 表示名 -> 集約方法 ("last"=期末 / "sum"=合計)
+let bojByCat = new Map();    // 大分類(file) -> [表示名,...]
+let bojCats = [];            // [{file, label}] 大分類の一覧
+let bojOptions = [];         // プルダウン候補 [{value:表示名, text:"大分類・表示名"}]（全項目横断）
+// 大分類(file)の表示ラベル。未定義のものはfileのまま表示する。
+const BOJ_CATEGORY_LABELS = {
+  "FM08_D": "外国為替市況",
+  "CO_Q":   "日銀短観",
+  "FM01_D": "無担保コールO/N物レート",
+  "PR01_M": "企業物価指数",
+  "MD02_M": "マネーストック",
+  "FM09_M": "実効為替レート",
+  "MD01_M": "マネタリーベース",
+};
+const BOJ_DEFAULT_COLORS = ["#2563eb", "#FF4B00", "#03AF7A", "#4DC4FF", "#F6AA00", "#990099", "#84919E", "#000000"];
+let bojKeys = new Array(TSE_SELECTION_COUNT).fill("");
+let bojColors = [...BOJ_DEFAULT_COLORS];
+let bojVisible = new Array(TSE_SELECTION_COUNT).fill(true);
+let bojData = null;
+
+/* ========= 時間軸の粒度（日次/週次/月次）。4段連動 ========= */
+let granularity = "week";   // "day" | "week" | "month"
+let baseDates = [];         // 現在の粒度でのバケット表示ラベル配列（全チャート共通の横軸）
+
+/* ========= helpers ========= */
+function cleanHeaderValue(s){
+  return String(s ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/^"+|"+$/g, "")
+    .trim();
+}
+
+function toNum(s){
+  if(s==null) return NaN;
+  return Number(String(s).replace(/,/g,'').replace(/"/g,'').trim());
+}
+function parseDelimitedLine(line, delim){
+  const out=[]; let cur=""; let inQ=false;
+  for(const ch of line){
+    if(ch==='"'){ inQ=!inQ; continue; }
+    if(ch===delim && !inQ){ out.push(cur); cur=""; }
+    else cur+=ch;
+  }
+  out.push(cur);
+  return out;
+}
+function detectDelimiter(headerLine){
+  const tabCount=(headerLine.match(/\t/g)||[]).length;
+  const commaCount=(headerLine.match(/,/g)||[]).length;
+  return tabCount>=commaCount ? "\t" : ",";
+}
+function uniqSorted(arr){
+  const set = new Set(arr);
+  const out = Array.from(set);
+  out.sort((a,b)=>String(a).localeCompare(String(b)));
+  return out;
+}
+function buildDateList(rows){
+  const set = new Set();
+  for(const r of rows){ if(r && r.date) set.add(r.date); }
+  const arr = Array.from(set);
+  arr.sort((a,b)=>{
+    const ta=new Date(a).getTime(), tb=new Date(b).getTime();
+    if(!Number.isNaN(ta) && !Number.isNaN(tb)) return ta-tb;
+    return String(a).localeCompare(String(b));
+  });
+  return arr;
+}
+function buildGlobalDates(idxRows, tseRows){
+  return buildDateList(idxRows.concat(tseRows));
+}
+function getVisibleWindowForDates(dates){
+  const n = dates.length;
+  const count = Math.max(10, Math.min(displayCount, MAX_DISPLAY, n || 10));
+  const maxOffset = Math.max(0, n - count);
+  const localOffset = Math.max(0, Math.min(Math.round(offsetX), maxOffset));
+  const startRaw = n - count - localOffset;
+  const endRaw = startRaw + count;
+  const start = Math.max(0, startRaw);
+  const end = Math.min(n, endRaw);
+
+  const realDates = (start < end) ? dates.slice(start, end) : [];
+  const realLen = realDates.length;
+
+  const padN = count - realLen;
+  const pads = new Array(Math.max(0,padN)).fill("");
+
+  const visibleDates = pads.concat(realDates);
+  const visibleAbsIndices = new Array(Math.max(0,padN)).fill(null).concat(
+    Array.from({length: realLen}, (_,i)=> start + i)
+  );
+  return { visibleDates, visibleAbsIndices, startIndex: start, endIndex: end };
+}
+function buildDateIndex(dates){
+  const map = new Map();
+  dates.forEach((d,i)=>{ map.set(d, i); });
+  return map;
+}
+function mapVisibleDatesToAbsIndices(dateIndex, visibleDates){
+  return visibleDates.map(d => (d && dateIndex && dateIndex.has(d) ? dateIndex.get(d) : null));
+}
+function updateTopChips(){
+  const latestEl = document.getElementById("latestChip");
+  const viewEl = document.getElementById("viewChip");
+
+  // 両チャートで統一された時系列を使用
+  const baseDates = getBaseDates();
+
+  if(!baseDates || baseDates.length===0){
+    latestEl.innerHTML = `<span class="muted">最新</span> -`;
+    viewEl.innerHTML = `<span class="muted">表示範囲</span> -`;
+    return;
+  }
+  latestEl.innerHTML = `<span class="muted">最新</span> ${baseDates[baseDates.length-1]}`;
+
+  // 表示範囲を計算
+  const n = baseDates.length;
+  const count = Math.max(10, Math.min(displayCount, MAX_DISPLAY, n || 10));
+  const maxOffset = Math.max(0, n - count);
+  const localOffset = Math.max(0, Math.min(Math.round(offsetX), maxOffset));
+  const start = Math.max(0, n - count - localOffset);
+  const end = Math.min(n, start + count);
+
+  const startDate = baseDates[start] || null;
+  const endDate = baseDates[end - 1] || null;
+  viewEl.innerHTML = `<span class="muted">表示範囲</span> ${startDate && endDate ? `${startDate} ~ ${endDate}` : '-'}`;
+}
+function syncCountControls(){
+  // スライダーは廃止
+}
+function bindControls(){
+  // 日付ラインボタン（押すごとに5→10→20→40→なしでサイクル）
+  const dateLineBtn = document.getElementById('dateLineBtn');
+  const DATE_LINE_STEPS = [5, 10, 20, 40, 0];
+  try{
+    const saved = parseInt(localStorage.getItem("dateLineDivisions_v1"), 10);
+    if(DATE_LINE_STEPS.includes(saved)) dateLineDivisions = saved;
+  }catch(e){}
+  const updateDateLineBtn = ()=>{
+    dateLineBtn.textContent = "日付ライン " + (dateLineDivisions > 0 ? dateLineDivisions : "なし");
+  };
+  updateDateLineBtn();
+  dateLineBtn.addEventListener('click', ()=>{
+    const i = DATE_LINE_STEPS.indexOf(dateLineDivisions);
+    dateLineDivisions = DATE_LINE_STEPS[(i + 1) % DATE_LINE_STEPS.length];
+    try{ localStorage.setItem("dateLineDivisions_v1", String(dateLineDivisions)); }catch(e){}
+    updateDateLineBtn();
+    redrawAll();
+  });
+
+  // 日付表示チェックボックス（日/月切替）
+  const fullDateCheck = document.getElementById('showFullDate');
+  fullDateCheck.checked = showFullDate;
+  fullDateCheck.addEventListener('change', ()=>{
+    showFullDate = fullDateCheck.checked;
+    redrawAll();
+  });
+}
+
+/* 時間軸の粒度（日次/週次/月次）切替。4段すべてが連動する。 */
+function bindGranularity(){
+  const btns = document.querySelectorAll('.gran-btn');
+  try{
+    const saved = localStorage.getItem('granularity_v1');
+    if(['day','week','month'].includes(saved)) granularity = saved;
+  }catch(e){}
+  const updateActive = ()=>{
+    btns.forEach(b => b.classList.toggle('active', b.dataset.gran === granularity));
+  };
+  updateActive();
+  btns.forEach(b => {
+    b.addEventListener('click', ()=>{
+      if(granularity === b.dataset.gran) return;
+      granularity = b.dataset.gran;
+      try{ localStorage.setItem('granularity_v1', granularity); }catch(e){}
+      offsetX = 0;
+      updateActive();
+      const bd = computeBuckets(granularity).map(x => x.label);
+      displayCount = Math.max(10, Math.min(displayCount, MAX_DISPLAY, bd.length || displayCount));
+      updateTopChips();
+      redrawAll();
+    });
+  });
+}
+
+/* ========= encoding-safe fetch ========= */
+async function fetchTextAutoEncoding(url){
+  const res = await fetch(url, {cache:"no-store"});
+  if(!res.ok) throw new Error(`${url} fetch失敗: ${res.status} ${res.statusText}`);
+  const buf = await res.arrayBuffer();
+
+  const tUtf8 = new TextDecoder("utf-8", {fatal:false}).decode(buf);
+  if (tUtf8.includes("PubDate") || tUtf8.includes("公表日") || tUtf8.includes("PropSell") || tUtf8.includes("自己計") || tUtf8.includes("日付")) {
+    return tUtf8;
+  }
+  const tSjis = new TextDecoder("shift-jis", {fatal:false}).decode(buf);
+  return tSjis;
+}
+
+/* ========= parsers ========= */
+// list.csv の指数名 → data/ 配下のファイル名（.csv除く）。不規則なものを明示
+const IDX_DATA_ALIASES = {
+  "TOPIX終値": "TOPIX (東証株価指数)",
+  "日経平均終値": "日経平均株価",
+  "日経半導体株株指数終値": "日経半導体株指数",
+};
+
+// 指数名から data/ 配下の候補ファイル名（.csv抜き）を返す
+function idxDataFileCandidates(name){
+  if(IDX_DATA_ALIASES[name]) return [IDX_DATA_ALIASES[name]];
+  const cands = [];
+  if(name.endsWith("終値")) cands.push(name.slice(0, -2)); // 「終値」を除いた名前
+  cands.push(name);                                        // そのまま
+  return cands;
+}
+
+// 四本値CSV(Date,Open,High,Low,Close,...)から終値だけを取り出してロング形式に
+function parseOhlcCloseToLong(text, name){
+  const lines = text.trim().split(/\r?\n/);
+  if(lines.length < 2) return [];
+  const delim = detectDelimiter(lines[0]);
+  const header = parseDelimitedLine(lines[0], delim).map(cleanHeaderValue);
+  const idxDate = header.indexOf("Date") >= 0 ? header.indexOf("Date") : header.indexOf("日付");
+  const idxClose = header.indexOf("Close") >= 0 ? header.indexOf("Close") : header.indexOf("終値");
+  if(idxDate < 0 || idxClose < 0) return [];
+  const rows = [];
+  for(let i=1; i<lines.length; i++){
+    const cols = parseDelimitedLine(lines[i], delim);
+    if(!cols || cols.length === 0) continue;
+    const date = (cols[idxDate] || "").trim();
+    const value = toNum(cols[idxClose]);
+    if(!date || Number.isNaN(value)) continue;
+    rows.push({date, name, value});
+  }
+  return rows;
+}
+
+function parseTsePrimeToLong(text){
+  tseDateMeta = new Map();
+  const lines=text.trim().split(/\r?\n/);
+  if(lines.length<2) throw new Error("TSEPrime.csv: データが空です");
+  const delim=detectDelimiter(lines[0]);
+  const header=parseDelimitedLine(lines[0],delim).map(cleanHeaderValue);
+
+  const idxPubDate=header.indexOf("PubDate") >= 0 ? header.indexOf("PubDate") : header.indexOf("公表日");
+  const idxStDate=header.indexOf("StDate") >= 0 ? header.indexOf("StDate") : header.indexOf("開始日");
+  const idxEnDate=header.indexOf("EnDate") >= 0 ? header.indexOf("EnDate") : header.indexOf("終了日");
+  const idxSection=header.indexOf("Section") >= 0 ? header.indexOf("Section") : header.indexOf("市場名");
+  if(idxPubDate<0) throw new Error("TSEPrime.csv: 必須列(PubDate/公表日)が見つかりません");
+
+  const fieldDefs = Object.entries(TSEPRIME_FIELD_MAP)
+    .map(([en, jp]) => ({ jp, idx: header.indexOf(en) >= 0 ? header.indexOf(en) : header.indexOf(jp) }))
+    .filter(x => x.idx >= 0);
+
+  if(fieldDefs.length===0) throw new Error("TSEPrime.csv: 数値列が見つかりません（Field map 不一致 / 文字化けの可能性）");
+
+  let sectionFilter = null;
+  if(idxSection >= 0){
+    const hasTsePrime = lines.slice(1).some(line => {
+      const cols = parseDelimitedLine(line, delim);
+      const section = (cols[idxSection] || "").trim();
+      return section === "TSEPrime";
+    });
+    if(hasTsePrime) sectionFilter = "TSEPrime";
+  }
+
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const cols=parseDelimitedLine(lines[i],delim);
+    if(!cols || cols.length===0) continue;
+
+    if(idxSection >= 0 && sectionFilter){
+      const section=(cols[idxSection]||"").trim();
+      if(section!==sectionFilter) continue;
+    }
+
+    const pub=(cols[idxPubDate]||"").trim();
+    const st = idxStDate >= 0 ? (cols[idxStDate]||"").trim() : "";
+    const en = idxEnDate >= 0 ? (cols[idxEnDate]||"").trim() : "";
+
+    // 時系列はEnDate（データ期間の終了日）を使う。株価指数との整列もEnDate基準
+    const date = en || pub;
+    if(!date) continue;
+    tseDateMeta.set(date, {st, en, pub});
+
+    for(const f of fieldDefs){
+      const value=toNum(cols[f.idx]);
+      if(Number.isNaN(value)) continue;
+      rows.push({date, name: f.jp, value});
+    }
+  }
+  return rows;
+}
+
+/* ========= list loaders ========= */
+async function loadNameList(filename){
+  async function fetchText(decoderName){
+    const res = await fetch(filename, {cache:'no-store'});
+    if(!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const dec = new TextDecoder(decoderName, {fatal:false});
+    return dec.decode(buf);
+  }
+  function parseToNames(text, forBumonList = false){
+    if(!text) return null;
+    const lines = text.split(/\r?\n/);
+    const out = [];
+    let afterDisplayOrder = false;
+
+    for(const raw of lines){
+      let line = String(raw||"");
+      line = line.replace(/^\uFEFF/, "");
+      if(!line.trim() || line.trim().startsWith('#')) continue;
+
+      // bumonlist.csvの場合、●表示順●以降のみを取得
+      if(forBumonList){
+        if(line.includes("●表示順●")){
+          afterDisplayOrder = true;
+          continue;
+        }
+        if(!afterDisplayOrder) continue;
+      }
+
+      const first = line.split(/\t|,/)[0].replace(/^"+|"+$/g,'');
+      if(first.trim()) out.push(first); // トリムしないで保持（├─などのプレフィックス保持）
+    }
+
+    const seen = new Set();
+    const uniq = [];
+    for(const n of out){
+      if(seen.has(n)) continue;
+      seen.add(n);
+      uniq.push(n);
+    }
+    return uniq.length ? uniq : null;
+  }
+
+  const isBumonList = filename.includes('bumonlist');
+
+  const tUtf8 = await fetchText('utf-8');
+  const nUtf8 = parseToNames(tUtf8, isBumonList);
+
+  const tSjis = await fetchText('shift-jis');
+  const nSjis = parseToNames(tSjis, isBumonList);
+
+  if(!nUtf8 && !nSjis) return null;
+  if(nUtf8 && !nSjis) return nUtf8;
+  if(!nUtf8 && nSjis) return nSjis;
+  return (nSjis.length > nUtf8.length ? nSjis : nUtf8);
+}
+
+/* ========= series building ========= */
+// 合成項目の定義（複数の差引を合計して計算）
+const COMPOSITE_FIELDS = {
+  "金融_差引累計": ["生保・損保_差引", "都銀・地銀等_差引", "信託銀行_差引", "その他金融機関_差引"],
+  "法人_差引累計": ["事業法人_差引", "その他法人_差引"]
+};
+
+function buildTseSeries(rows, keys, colors, dates, visible, mode = "line"){
+  const series = [];
+  const barMode = (mode === "bar");
+
+  // 差引累計が1つでも選択されているかチェック
+  const hasCumulative = keys.some((k, i) => k && k.endsWith("_差引累計") && visible[i]);
+
+  for(let i=0;i<keys.length;i++){
+    const k = keys[i];
+    if(!k) continue;
+    if(!visible[i]) continue; // チェックが外れていたらスキップ
+
+    // 累積計算かどうかをチェック
+    const isCumulative = k.endsWith("_差引累計");
+
+    // 差引累計がある場合、差引累計以外はスキップ（縦棒モードでは全項目を表示）
+    if(!barMode && hasCumulative && !isCumulative) continue;
+
+    // 合成項目（金融_差引累計、法人_差引累計）かどうかをチェック
+    const isComposite = COMPOSITE_FIELDS.hasOwnProperty(k);
+
+    let values;
+    if(isComposite){
+      // 合成項目の場合、複数の差引を合計して累積計算
+      const baseKeys = COMPOSITE_FIELDS[k];
+      const maps = baseKeys.map(baseKey => {
+        const m = new Map();
+        for(const r of rows){ if(r.name === baseKey) m.set(r.date, r.value); }
+        return m;
+      });
+
+      values = [];
+      let cumulative = 0;
+      for(let j=0; j<dates.length; j++){
+        const d = dates[j];
+        let sum = 0;
+        let hasValue = false;
+        for(const m of maps){
+          const v = m.has(d) ? m.get(d) : null;
+          if(v !== null){
+            sum += v;
+            hasValue = true;
+          }
+        }
+        if(barMode){
+          // 増減縦棒: 発表ごとの差引合計をそのまま使用
+          values.push(hasValue ? sum : null);
+          continue;
+        }
+        if(hasValue){
+          cumulative += sum;
+        }
+        values.push(cumulative);
+      }
+    } else if(isCumulative){
+      // 通常の累積計算
+      const baseKey = k.replace("_差引累計", "_差引");
+      const map = new Map();
+      for(const r of rows){ if(r.name===baseKey) map.set(r.date, r.value); }
+
+      values = [];
+      let cumulative = 0;
+      for(let j=0; j<dates.length; j++){
+        const d = dates[j];
+        const v = map.has(d) ? map.get(d) : null;
+        if(barMode){
+          // 増減縦棒: 発表ごとの差引をそのまま使用
+          values.push(v);
+          continue;
+        }
+        if(v !== null){
+          cumulative += v;
+        }
+        values.push(cumulative);
+      }
+    } else {
+      // 通常の値
+      const map = new Map();
+      for(const r of rows){ if(r.name===k) map.set(r.date, r.value); }
+      values = dates.map(d => (map.has(d) ? map.get(d) : null));
+    }
+
+    // 増減（縦棒）では「売」を売り越し方向＝マイナスで表示
+    if(barMode && k.endsWith("_売")){
+      values = values.map(v => (v == null ? v : -v));
+    }
+
+    const label = barMode && (isCumulative || isComposite) ? k.replace("_差引累計", "_差引") : k;
+    series.push({ label, color: colors[i] || DEFAULT_COLORS[i % DEFAULT_COLORS.length], width: 2, values, isCumulative: (isCumulative || isComposite) && !barMode, slotIndex: i });
+  }
+  return { dates, series, chartType: barMode ? "bar" : "line" };
+}
+
+/* ========= 粒度（日次/週次/月次）バケットと再サンプリング ========= */
+// 表示ラベルと、比較用の上限境界(bound)を持つバケット配列を作る。
+// 文字列(ISO日付)の辞書順比較で期間判定する（YYYY-MM-DD / YYYY-MM）。
+function ymOf(d){ return String(d || "").slice(0, 7); }
+function computeBuckets(g){
+  if(g === "week"){
+    const ds = tseDates.length ? tseDates : idxDates;
+    return ds.map(d => ({ label: d, bound: d }));
+  }
+  if(g === "day"){
+    const set = new Set();
+    for(const r of idxRows) set.add(r.date);
+    for(const r of tseRows) set.add(r.date);
+    for(const r of bojRows) set.add(r.date);
+    const arr = Array.from(set).filter(Boolean).sort();
+    return arr.map(d => ({ label: d, bound: d }));
+  }
+  // month
+  const set = new Set();
+  for(const r of idxRows) set.add(ymOf(r.date));
+  for(const r of tseRows) set.add(ymOf(r.date));
+  for(const r of bojRows) set.add(ymOf(r.date));
+  const arr = Array.from(set).filter(s => s && s.length >= 7).sort();
+  // bound="YYYY-MM-99" は当該月内のどのYYYY-MM-DDよりも辞書順で後（'9'>数字）
+  return arr.map(ym => ({ label: ym, bound: ym + "-99" }));
+}
+
+// long rows を buckets 上に集約。methodOf(name)="last"(期末値・前方補完) または "sum"(期間合計)。
+// neededNames が与えられればその系列のみ処理（計算量削減）。
+function resampleRows(rows, buckets, methodOf, neededNames){
+  const byName = new Map();
+  for(const r of rows){
+    if(neededNames && !neededNames.has(r.name)) continue;
+    if(!byName.has(r.name)) byName.set(r.name, []);
+    byName.get(r.name).push(r);
+  }
+  const out = [];
+  for(const [name, arr] of byName){
+    arr.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const method = methodOf(name) === "sum" ? "sum" : "last";
+    let j = 0, carry = null;
+    for(const b of buckets){
+      if(method === "sum"){
+        let s = 0, has = false;
+        while(j < arr.length && String(arr[j].date) <= b.bound){ s += arr[j].value; has = true; j++; }
+        if(has) out.push({ date: b.label, name, value: s });
+      } else {
+        while(j < arr.length && String(arr[j].date) <= b.bound){ carry = arr[j].value; j++; }
+        if(carry != null) out.push({ date: b.label, name, value: carry });
+      }
+    }
+  }
+  return out;
+}
+
+// 単純な水準系チャート（指数・政府統計）。複数選択時は起点100で正規化比較。
+function buildLevelSeries(rows, keys, colors, visible, dates, defColors){
+  const series = [];
+  for(let i = 0; i < keys.length; i++){
+    const k = keys[i];
+    if(!k || !visible[i]) continue;
+    const map = new Map();
+    for(const r of rows){ if(r.name === k) map.set(r.date, r.value); }
+    const values = dates.map(d => (map.has(d) ? map.get(d) : null));
+    series.push({ label: k, color: colors[i] || defColors[i % defColors.length], width: 2, values, slotIndex: i });
+  }
+  if(series.length > 1){ for(const s of series) s.isNormalized = true; }
+  return { dates, series };
+}
+
+/* ========= draw ========= */
+function renderLegend(elId, data){
+  const box = document.getElementById(elId);
+  if(!box) return;
+  box.innerHTML = '';
+  if(!data || !data.series || data.series.length===0) return;
+  const colorPrefix = elId === "tseLegend" ? "tseColor" : (elId === "barLegend" ? "barColor" : (elId === "idxLegend" ? "idxColor" : (elId === "bojLegend" ? "bojColor" : null)));
+  for(const s of data.series){
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    const sw = document.createElement('span');
+    sw.className = 'swatch';
+    sw.style.background = s.color;
+    // 凡例の色をクリックでカラーピッカーを開く
+    if(colorPrefix && s.slotIndex != null){
+      const picker = document.getElementById(colorPrefix + (s.slotIndex + 1));
+      if(picker){
+        sw.style.cursor = "pointer";
+        sw.title = "クリックで色を変更";
+        sw.addEventListener("click", ()=> picker.click());
+      }
+    }
+    item.appendChild(sw);
+    const txt = document.createElement('span');
+    txt.textContent = s.label;
+    item.appendChild(txt);
+    box.appendChild(item);
+  }
+}
+
+// キリのいい数値を計算（部門別売買動向用、千円単位）
+// 折れ線最大値 < 縦軸最大値 を保証
+// 25兆円以上の値にも対応
+function calcNiceTicks(minV, maxV, targetCount = 5){
+  const range = maxV - minV;
+  if(range === 0) return [minV, minV];
+
+  // 億円単位での範囲
+  const rangeOku = range / 1e5;
+
+  // キリのいい間隔を計算（億円単位）
+  // 50000億=5兆、100000億=10兆、200000億=20兆、500000億=50兆
+  const niceIntervals = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000];
+  const rawInterval = rangeOku / targetCount;
+
+  let bestInterval = niceIntervals[0];
+  for(const ni of niceIntervals){
+    if(ni >= rawInterval){
+      bestInterval = ni;
+      break;
+    }
+    bestInterval = ni;
+  }
+
+  // 千円単位に戻す
+  const interval = bestInterval * 1e5;
+
+  // 開始値をキリのいい数値に（minVを含むか下回る）
+  const startTick = Math.floor(minV / interval) * interval;
+  // 終了値をキリのいい数値に（maxVを必ず超える）
+  const endTick = Math.ceil(maxV / interval) * interval;
+
+  const ticks = [];
+  for(let t = startTick; t <= endTick; t += interval){
+    ticks.push(t);
+    if(ticks.length > 10) break;
+  }
+
+  // 最後のtickがmaxVを超えていることを保証
+  if(ticks.length > 0 && ticks[ticks.length - 1] < maxV){
+    ticks.push(ticks[ticks.length - 1] + interval);
+  }
+
+  return ticks;
+}
+
+// 株価指数・政府統計用のキリのいい数値を計算
+// 折れ線最大値 < 縦軸最大値 を保証。任意の桁（数百万規模でも）に対応するため
+// 間隔を 1/2/5×10^k で自動算出する。
+function calcIdxNiceTicks(minV, maxV, targetCount = 5){
+  let range = maxV - minV;
+  // 範囲が0（単一値・平坦）の場合は値の大きさに応じた小さな帯を作る
+  if(range === 0) range = Math.abs(maxV) > 0 ? Math.abs(maxV) * 0.01 : 1;
+
+  // キリのいい間隔を 1/2/5×10^k から選ぶ
+  const rawInterval = range / Math.max(1, targetCount);
+  const mag = Math.pow(10, Math.floor(Math.log10(rawInterval)));
+  const norm = rawInterval / mag;
+  let step;
+  if(norm <= 1) step = 1;
+  else if(norm <= 2) step = 2;
+  else if(norm <= 5) step = 5;
+  else step = 10;
+  step *= mag;
+
+  // 開始値・終了値をキリのいい数値に（minVを下回り、maxVを必ず超える）
+  const startTick = Math.floor(minV / step) * step;
+  const endTick = Math.ceil(maxV / step) * step;
+
+  const ticks = [];
+  for(let t = startTick; t <= endTick + step * 0.5; t += step){
+    ticks.push(t);
+    if(ticks.length > 20) break;
+  }
+  // 最後のtickがmaxVを超えていることを保証
+  if(ticks.length > 0 && ticks[ticks.length - 1] < maxV){
+    ticks.push(ticks[ticks.length - 1] + step);
+  }
+  return ticks;
+}
+
+// 十字カーソルの縦線（全チャート共有のhoverDateIdx位置に描画）
+function drawCrosshairLine(ctx, canvas, pad, h){
+  if(hoverDateIdx == null) return;
+  const pps = canvas.pointPositions;
+  if(!pps || !pps[hoverDateIdx]) return;
+  const x = pps[hoverDateIdx].x;
+  ctx.save();
+  ctx.strokeStyle = document.body.classList.contains('full-dark') ? '#d1d5db' : '#374151';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 3]);
+  ctx.beginPath();
+  ctx.moveTo(x, pad.t);
+  ctx.lineTo(x, h - pad.b);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawChartGeneric(ctx, canvas, data, visibleDates, visibleAbsIndices, isTseChart = false){
+  const w=canvas.width, h=canvas.height;
+  const pad={t:20,b:54,l:12,r:190};
+  const chartW=w-pad.l-pad.r;
+  const chartH=h-pad.t-pad.b;
+
+  ctx.clearRect(0,0,w,h);
+
+  // 折れ線グラフ描画領域の左上にグレー文字で題名を描画
+  {
+    const tkey = (canvas === idxCanvas) ? "idx" : (canvas === tseCanvas) ? "tse" : (canvas === bojCanvas) ? "boj" : "bar";
+    const title = CHART_TITLES[tkey];
+    if(title){
+      ctx.save();
+      ctx.font = "bold 30px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+      ctx.fillStyle = '#9ca3af';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(title, pad.l + 8, pad.t + 30);
+      ctx.restore();
+    }
+  }
+
+  ctx.font = "22px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+
+  if(!data || !data.series || data.series.length===0 || !data.dates || data.dates.length===0){
+    ctx.fillStyle='#6b7280';
+    ctx.textAlign='center';
+    ctx.fillText("データを選択してください", w/2, h/2);
+    canvas.pointPositions = [];
+    return;
+  }
+
+  // 累積・正規化用の基準値を計算（表示範囲の最初の有効な値）
+  const seriesOffsets = data.series.map(s => {
+    if(!s.isCumulative && !s.isNormalized) return 0;
+    for(let i=0; i<visibleAbsIndices.length; i++){
+      const absIdx = visibleAbsIndices[i];
+      if(absIdx != null && s.values[absIdx] != null && !Number.isNaN(s.values[absIdx])){
+        return s.values[absIdx];
+      }
+    }
+    return 0;
+  });
+
+  // 値取得関数（累積は基準値を0に、正規化は基準値を100とした比率に変換）
+  const getValue = (s, absIdx, seriesIdx) => {
+    const v = s.values[absIdx];
+    if(v == null || Number.isNaN(v)) return null;
+    if(s.isCumulative) return v - seriesOffsets[seriesIdx];
+    if(s.isNormalized){
+      const base = seriesOffsets[seriesIdx];
+      return base ? v / base * 100 : null;
+    }
+    return v;
+  };
+
+  let minV=Infinity, maxV=-Infinity;
+  for(let si=0; si<data.series.length; si++){
+    const s = data.series[si];
+    for(let i=0; i<visibleAbsIndices.length; i++){
+      const absIdx = visibleAbsIndices[i];
+      if(absIdx==null) continue;
+      const v = getValue(s, absIdx, si);
+      if(v==null) continue;
+      minV=Math.min(minV,v); maxV=Math.max(maxV,v);
+    }
+  }
+  if(minV===Infinity){
+    ctx.fillStyle='#6b7280'; ctx.textAlign='center'; ctx.fillText("表示範囲にデータがありません", w/2, h/2);
+    canvas.pointPositions = [];
+    return;
+  }
+
+  const isBarChart = (data.chartType === "bar");
+  if(isBarChart){
+    // 縦棒はゼロ基準で描くため、0を必ず範囲に含める
+    minV = Math.min(minV, 0);
+    maxV = Math.max(maxV, 0);
+  }
+
+  const range=(maxV-minV)||1;
+
+  // 両チャートともキリのいい数値で範囲を設定
+  let plotMinV, plotMaxV;
+  let ticks = [];
+  if(isTseChart){
+    ticks = calcNiceTicks(minV, maxV, 4);
+  } else {
+    ticks = calcIdxNiceTicks(minV, maxV, 4);
+  }
+
+  if(ticks.length >= 2){
+    plotMinV = ticks[0];
+    plotMaxV = ticks[ticks.length - 1];
+    const tickRange = plotMaxV - plotMinV;
+    // 折れ線が確実にチャート内に収まるようにパディングを追加
+    plotMinV -= tickRange * 0.05;
+    plotMaxV += tickRange * 0.05;
+  } else {
+    plotMinV = minV - range*0.1;
+    plotMaxV = maxV + range*0.1;
+  }
+
+  const scaleY=chartH/(plotMaxV-plotMinV);
+  const getX=(i)=>pad.l+(i+0.5)*(chartW/visibleDates.length);
+  const getY=(val)=>pad.t+chartH-(val-plotMinV)*scaleY;
+
+  // グリッド線と補助線を描画
+  if(ticks.length >= 2){
+    const tickInterval = ticks[1] - ticks[0];
+
+    // メイングリッド線（5本）と補助線
+    for(let i = 0; i < ticks.length; i++){
+      const t = ticks[i];
+      const y = getY(t);
+
+      // メイングリッド線
+      ctx.strokeStyle='#9ca3af';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
+
+      // 価格ラベル
+      ctx.fillStyle=document.body.classList.contains('full-dark') ? '#e5e7eb' : '#374151'; ctx.textAlign='left';
+      const formattedVal = isTseChart ? formatTseAxisValue(t) : formatIdxAxisValue(t);
+      ctx.fillText(formattedVal, w-pad.r+6, y+4);
+
+      // 補助線（次のティックとの間に1本）
+      if(i < ticks.length - 1){
+        const midY = getY(t + tickInterval / 2);
+        ctx.strokeStyle='#c8cdd5';
+        ctx.lineWidth=1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(w-pad.r, midY); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  } else {
+    // フォールバック
+    const gridSteps=4;
+    for(let i=0;i<=gridSteps;i++){
+      const y=pad.t+(chartH*i/gridSteps);
+      const v=plotMaxV-(plotMaxV-plotMinV)*(i/gridSteps);
+      ctx.strokeStyle='#9ca3af'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
+      ctx.fillStyle=document.body.classList.contains('full-dark') ? '#e5e7eb' : '#374151'; ctx.textAlign='left';
+      const formattedVal = isTseChart ? formatTseAxisValue(v) : formatIdxAxisValue(v);
+      ctx.fillText(formattedVal, w-pad.r+6, y+4);
+    }
+  }
+
+  // 日付ライン（縦線）：表示幅をdateLineDivisions等分した位置に描画
+  if(dateLineDivisions > 0){
+    ctx.strokeStyle='#9ca3af';
+    ctx.lineWidth=1;
+    for(let k=0; k<=dateLineDivisions; k++){
+      const x = pad.l + chartW * k / dateLineDivisions;
+      ctx.beginPath();
+      ctx.moveTo(x, pad.t);
+      ctx.lineTo(x, h-pad.b);
+      ctx.stroke();
+    }
+  }
+
+  // 日付ラベルの表示（チャートごとに非表示可能）
+  const chartKey = (canvas === idxCanvas) ? "idx" : (canvas === tseCanvas) ? "tse" : (canvas === bojCanvas) ? "boj" : "bar";
+  if(!dateLabelsHidden[chartKey]) visibleDates.forEach((d,i)=>{
+    if(d && i % Math.ceil(visibleDates.length/6)===0){
+      const x = getX(i);
+
+      // 日付ラベルは常に表示（showFullDateがfalseなら月表示のみ）
+      let displayDate = d;
+      if(!showFullDate && d){
+        // YYYY-MM-DD形式からYYYY-MMに変換
+        const parts = d.split('-');
+        if(parts.length >= 2){
+          displayDate = parts[0] + '-' + parts[1];
+        }
+      }
+      ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--axisDark').trim() || '#6b7280';
+      ctx.textAlign='center';
+      ctx.fillText(displayDate, x, h-6);
+    }
+  });
+
+  // ツールチップ用にオフセット情報も保存
+  canvas.pointPositions = visibleDates.map((d,i)=>({
+    x:getX(i),
+    w:chartW/visibleDates.length,
+    absIndex:visibleAbsIndices[i],
+    date:d
+  }));
+  canvas.seriesOffsets = seriesOffsets;
+
+  // 各系列を描画
+  if(isBarChart){
+    // 増減縦棒: 1日付スロットに系列数ぶんの棒をグループ描画（ゼロ基準）
+    const zeroY = getY(0);
+    const slotW = chartW / visibleDates.length;
+    const nSeries = data.series.length;
+    const groupW = slotW * 0.8;
+    const barW = Math.max(1, groupW / Math.max(1, nSeries));
+
+    // ゼロライン
+    ctx.strokeStyle='#9ca3af';
+    ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(w-pad.r, zeroY); ctx.stroke();
+
+    for(let si=0; si<nSeries; si++){
+      const s = data.series[si];
+      ctx.fillStyle = s.color || '#000000';
+      for(let i=0; i<visibleAbsIndices.length; i++){
+        const absIdx = visibleAbsIndices[i];
+        if(absIdx == null) continue;
+        const v = getValue(s, absIdx, si);
+        if(v == null || !Number.isFinite(v)) continue;
+        const cx = getX(i);
+        const x = cx - groupW/2 + si*barW;
+        const y = getY(v);
+        const top = Math.min(y, zeroY);
+        const hgt = Math.max(1, Math.abs(zeroY - y));
+        ctx.fillRect(x, top, Math.max(1, barW - 1), hgt);
+      }
+    }
+    drawCrosshairLine(ctx, canvas, pad, h);
+    return;
+  }
+
+  for(let si=0; si<data.series.length; si++){
+    const s = data.series[si];
+    const color = s.color || '#000000';
+    const lineWidth = s.width || 2;
+
+    // 有効なデータポイントを収集
+    const validPoints = [];
+    for(let i=0; i<visibleAbsIndices.length; i++){
+      const absIdx = visibleAbsIndices[i];
+      if(absIdx == null) continue;
+      const v = getValue(s, absIdx, si);
+      if(v == null || !Number.isFinite(v)) continue;
+      const x = getX(i);
+      const y = getY(v);
+      if(!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      validPoints.push({x, y});
+    }
+
+    // 線を描画（有効なポイント間を連続して繋ぐ）
+    if(validPoints.length >= 2){
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(validPoints[0].x, validPoints[0].y);
+      for(let i=1; i<validPoints.length; i++){
+        ctx.lineTo(validPoints[i].x, validPoints[i].y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    } else if(validPoints.length === 1){
+      // 1点のみの場合は小さな円で表示
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(validPoints[0].x, validPoints[0].y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawCrosshairLine(ctx, canvas, pad, h);
+}
+
+function formatAxisValue(v){
+  const absV = Math.abs(v);
+  if(absV >= 1e12){
+    return (v / 1e12).toFixed(1) + "兆";
+  } else if(absV >= 1e8){
+    return (v / 1e8).toFixed(1) + "億";
+  } else if(absV >= 1e4){
+    return (v / 1e4).toFixed(0) + "万";
+  } else {
+    return v.toFixed(0);
+  }
+}
+
+// 株価指数用：日経平均等の表示を改良（5万5000形式）
+function formatIdxAxisValue(v){
+  const absV = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+
+  if(absV >= 10000){
+    // 1万以上：○万○○○○形式
+    const man = Math.floor(absV / 10000);
+    const remainder = Math.round(absV % 10000);
+    if(remainder === 0){
+      return sign + man + "万";
+    }
+    return sign + man + "万" + remainder;
+  } else if(absV >= 1000){
+    // 1000以上：そのまま表示
+    return Math.round(v).toLocaleString();
+  } else {
+    // 1000未満：整数はそのまま、小数（金利など小さい値）は桁に応じて保持
+    if(Number.isInteger(v)) return String(v);
+    const d = absV < 1 ? 3 : (absV < 100 ? 2 : 1);
+    let s = v.toFixed(d);
+    if(s.indexOf('.') >= 0) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+  }
+}
+
+// 部門別売買動向用：千円単位→億円単位で表示
+// 1億円 = 100,000千円（1e5）
+// 1兆円 = 100,000,000千円（1e8）
+function formatTseAxisValue(v){
+  // vは千円単位
+  const okuVal = v / 1e5; // 億円に変換
+  const absOku = Math.abs(okuVal);
+
+  if(absOku >= 10000){
+    // 1兆以上：○兆○○○○億円
+    const cho = Math.floor(okuVal / 10000);
+    const oku = Math.abs(Math.round(okuVal % 10000));
+    if(oku === 0){
+      return cho + "兆円";
+    }
+    return cho + "兆" + oku + "億円";
+  } else {
+    // 1兆未満：○○億円
+    return Math.round(okuVal) + "億円";
+  }
+}
+
+function resizeCanvas(canvas){
+  const rect=canvas.getBoundingClientRect();
+  canvas.width=Math.floor(rect.width);
+  canvas.height=Math.floor(rect.height);
+}
+
+/* ========= tooltip ========= */
+function fmt(n){
+  return (n!==null && n!==undefined && !Number.isNaN(n))
+    ? n.toLocaleString(undefined,{maximumFractionDigits:2})
+    : '-';
+}
+function showTooltipForCanvas(e, canvas, data){
+  const pps = canvas.pointPositions;
+  if(!pps || !data) return;
+
+  const rect=canvas.getBoundingClientRect();
+  const mouseX=e.clientX-rect.left;
+
+  const p = pps.find(pp => mouseX >= pp.x - pp.w/2 && mouseX <= pp.x + pp.w/2);
+  if(!p){
+    tooltip.style.display='none';
+    return;
+  }
+  const absIdx = p.absIndex;
+  const date = p.date || (absIdx!=null ? data.dates[absIdx] : "") || "";
+  const offsets = canvas.seriesOffsets || [];
+
+  // 部門別チャート（累積・増減）はデータ期間（StDate～EnDate）と取得日（PubDate）を表示
+  const fmtDateSlash = (d)=> String(d||"").replace(/-/g, "/");
+  let html;
+  const meta = (canvas === tseCanvas || canvas === barCanvas) ? tseDateMeta.get(date) : null;
+  if(meta && (meta.st || meta.en)){
+    html = `<strong>データ期間：${fmtDateSlash(meta.st)}～${fmtDateSlash(meta.en || date)}</strong><br>`
+         + `取得日：${fmtDateSlash(meta.pub || date)}<br>`;
+  } else {
+    html = `<strong>${fmtDateSlash(date)}</strong><br>`;
+  }
+  for(let si=0; si<data.series.length; si++){
+    const s = data.series[si];
+    let val = (absIdx!=null ? s.values[absIdx] : null);
+    // 累積データの場合はオフセット調整
+    if(val != null && s.isCumulative && offsets[si] != null){
+      val = val - offsets[si];
+    }
+    // 複数選択時の株価指数は実値＋起点100の指数を表示
+    if(val != null && s.isNormalized && offsets[si]){
+      html += `<span style="color:${s.color}; font-weight:700;">${s.label}</span>: ${fmt(val)}（${(val / offsets[si] * 100).toFixed(1)}）<br>`;
+      continue;
+    }
+    html += `<span style="color:${s.color}; font-weight:700;">${s.label}</span>: ${fmt(val)}<br>`;
+  }
+  tooltip.innerHTML = html;
+  tooltip.style.display='block';
+
+  let tx=e.clientX+14, ty=e.clientY+14;
+  if(tx+260>window.innerWidth) tx-=280;
+  tooltip.style.left=tx+'px';
+  tooltip.style.top=ty+'px';
+}
+
+/* ========= interactions (shared) ========= */
+function getBaseDates(){
+  // 現在の粒度で構築済みの共通時系列。未構築なら週次相当を返す。
+  if(baseDates && baseDates.length) return baseDates;
+  return tseDates.length > 0 ? tseDates : idxDates;
+}
+
+function onWheelZoom(e){
+  e.preventDefault();
+  const baseDates = getBaseDates();
+  if(!baseDates || baseDates.length===0) return;
+
+  const shrink = (e.deltaY < 0);
+  displayCount += (shrink ? -1 : +1);
+  displayCount = Math.max(10, Math.min(displayCount, MAX_DISPLAY, baseDates.length));
+
+  offsetX = 0;
+
+  syncCountControls();
+  updateTopChips();
+  redrawAll();
+}
+function onMouseDown(e, canvas){
+  const baseDates = getBaseDates();
+  if(!baseDates || baseDates.length===0) return;
+  isDragging = true;
+  dragCanvas = canvas;
+  dragStartX = e.clientX;
+  dragStartOffset = offsetX;
+  document.body.style.cursor = 'grabbing';
+}
+function onMouseMove(e){
+  const baseDates = getBaseDates();
+  if(!baseDates || baseDates.length===0) return;
+
+  if(isDragging){
+    const canvas = dragCanvas || idxCanvas;
+    const rect = canvas.getBoundingClientRect();
+    const usableW = Math.max(1, rect.width - 120);
+    const diffX = e.clientX - dragStartX;
+    const ppc = Math.max(1, usableW / displayCount);
+    const moveBars = diffX / ppc;
+
+    const n = baseDates.length;
+    const maxOffset = Math.max(0, n - displayCount);
+
+    let newOffset = dragStartOffset + moveBars;
+    newOffset = Math.max(0, Math.min(newOffset, maxOffset));
+    offsetX = Math.round(newOffset);
+
+    updateTopChips();
+    redrawAll();
+  }
+}
+function onMouseUp(){
+  isDragging = false;
+  dragCanvas = null;
+  document.body.style.cursor = 'default';
+}
+function onMouseLeave(){
+  if(isDragging) onMouseUp();
+  tooltip.style.display='none';
+  if(hoverDateIdx != null){
+    hoverDateIdx = null;
+    redrawAll();
+  }
+}
+
+// 十字カーソル位置の更新（カーソル下の時系列スロットを特定し、全チャートに縦線を引く）
+function updateHoverIndex(e, canvas){
+  const pps = canvas.pointPositions;
+  if(!pps || pps.length === 0) return;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  let idx = null;
+  for(let i=0; i<pps.length; i++){
+    const pp = pps[i];
+    if(mouseX >= pp.x - pp.w/2 && mouseX <= pp.x + pp.w/2){ idx = i; break; }
+  }
+  if(idx !== hoverDateIdx){
+    hoverDateIdx = idx;
+    redrawAll();
+  }
+}
+
+/* ========= redraw ========= */
+function rebuildData(){
+  // 現在の粒度（日次/週次/月次）でバケット軸を構築。4段すべてがこの軸を共有する。
+  const buckets = computeBuckets(granularity);
+  baseDates = buckets.map(b => b.label);
+
+  // 各データを集約ルールに従ってバケット軸へ再サンプリング
+  //  指数・政府統計＝期末値(last) / 部門別差引＝合計(sum)（政府統計は系列ごとに上書き可）
+  const idxNeeded = new Set(idxKeys.filter(Boolean));
+  const idxR = resampleRows(idxRows, buckets, () => "last", idxNeeded);
+
+  const tseR = resampleRows(tseRows, buckets, () => "sum");
+
+  const bojNeeded = new Set(bojKeys.filter(Boolean));
+  const bojR = resampleRows(bojRows, buckets, (name) => (bojAgg.get(name) || "last"), bojNeeded);
+
+  // 指数データ（水準系・複数時は起点100比較）
+  idxData = buildLevelSeries(idxR, idxKeys, idxColors, idxVisible, baseDates, IDX_DEFAULT_COLORS);
+  idxData.dateIndex = buildDateIndex(baseDates);
+
+  // 部門別データ（累積折れ線）
+  tseData = buildTseSeries(tseR, tseKeys, tseColors, baseDates, tseVisible, "line");
+  tseData.dateIndex = buildDateIndex(baseDates);
+
+  // 部門別データ（増減縦棒：粒度ごとの差引合計）
+  barData = buildTseSeries(tseR, barKeys, barColors, baseDates, barVisible, "bar");
+  barData.dateIndex = buildDateIndex(baseDates);
+
+  // 政府統計（水準系・複数時は起点100比較）
+  bojData = buildLevelSeries(bojR, bojKeys, bojColors, bojVisible, baseDates, BOJ_DEFAULT_COLORS);
+  bojData.dateIndex = buildDateIndex(baseDates);
+
+  renderLegend("idxLegend", idxData);
+  renderLegend("tseLegend", tseData);
+  renderLegend("barLegend", barData);
+  renderLegend("bojLegend", bojData);
+
+  // UIの状態を更新（差引累計がある場合は他を無効化）
+  updateTseSelectionUI();
+}
+
+function redrawAll(){
+  rebuildData(); // 累積計算・粒度再サンプリングのために毎回再構築
+
+  // 4段すべてで同じ時系列（baseDates）を使用 → 横軸が完全に一致
+  const commonWindow = getVisibleWindowForDates(baseDates);
+
+  drawChartGeneric(idxCtx, idxCanvas, idxData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, false);
+  drawChartGeneric(tseCtx, tseCanvas, tseData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, true);
+  drawChartGeneric(barCtx, barCanvas, barData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, true);
+  drawChartGeneric(bojCtx, bojCanvas, bojData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, false);
+}
+
+/* ========= select UI ========= */
+function updateTseSelectionUI(){
+  // 差引累計が1つでも選択・表示されているかチェック
+  const hasCumulative = tseKeys.some((k, i) => k && k.endsWith("_差引累計") && tseVisible[i]);
+
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    const sel = document.getElementById(`tseSel${i+1}`);
+    const colorPicker = document.getElementById(`tseColor${i+1}`);
+    const checkbox = document.getElementById(`tseCheck${i+1}`);
+    const selDiv = sel ? sel.closest('.sel') : null;
+
+    if(!sel || !checkbox || !selDiv) continue;
+
+    const k = tseKeys[i];
+    const isCumulative = k && k.endsWith("_差引累計");
+
+    // チェックボックスの状態を更新
+    checkbox.checked = tseVisible[i];
+
+    // 差引累計がある場合、差引累計以外は無効化表示
+    if(hasCumulative && k && !isCumulative){
+      selDiv.classList.add('disabled');
+    } else {
+      selDiv.classList.remove('disabled');
+    }
+  }
+}
+
+function fillIdxSelect(selectEl, names, current){
+  selectEl.innerHTML = "";
+  const optEmpty = document.createElement("option");
+  optEmpty.value = "";
+  optEmpty.textContent = "— 選択してください —";
+  selectEl.appendChild(optEmpty);
+  for(const n of names){
+    const opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = n;
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = current || "";
+}
+
+// 表示名からvalue（キー名）を抽出する関数
+function extractKeyFromDisplayName(displayName){
+  // ├─、└─、　├─、　└─などのプレフィックスを除去
+  return displayName.replace(/^[├└　 ─]+/, '').trim();
+}
+
+function fillTseSelect(selectEl, names, current){
+  selectEl.innerHTML = "";
+  const optEmpty = document.createElement("option");
+  optEmpty.value = "";
+  optEmpty.textContent = "— 選択 —";
+  selectEl.appendChild(optEmpty);
+
+  let currentOptGroup = null;
+
+  for(const n of names){
+    const trimmed = n.trim();
+
+    // セパレータ行（ー差引累計ー、ー個別項目ー）はoptgroupとして扱う
+    if(trimmed.startsWith("ー") && trimmed.endsWith("ー")){
+      currentOptGroup = document.createElement("optgroup");
+      currentOptGroup.label = trimmed;
+      selectEl.appendChild(currentOptGroup);
+      continue;
+    }
+
+    const opt = document.createElement("option");
+    const keyName = extractKeyFromDisplayName(n);
+    opt.value = keyName;
+    opt.textContent = n; // プレフィックス付きの表示名
+    opt.dataset.fullName = n; // 元のプレフィックス付き名前を保存
+    opt.dataset.shortName = keyName; // プレフィックスなしの名前を保存
+
+    if(currentOptGroup){
+      currentOptGroup.appendChild(opt);
+    } else {
+      selectEl.appendChild(opt);
+    }
+  }
+
+  selectEl.value = current || "";
+  // 選択後の表示をプレフィックスなしに更新
+  updateSelectDisplay(selectEl);
+}
+
+// 選択されたオプションの表示をプレフィックスなしに変更する
+function updateSelectDisplay(selectEl){
+  const selectedOpt = selectEl.options[selectEl.selectedIndex];
+  if(selectedOpt && selectedOpt.dataset.shortName){
+    selectedOpt.textContent = selectedOpt.dataset.shortName;
+  }
+}
+
+// プルダウンを開くときに全オプションの表示をプレフィックス付きに戻す
+function restoreSelectDisplay(selectEl){
+  for(const opt of selectEl.options){
+    if(opt.dataset.fullName){
+      opt.textContent = opt.dataset.fullName;
+    }
+  }
+}
+
+function bindSelects(){
+  // 指数セレクト（8つ、複数選択時は起点100の上昇率比較）
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    const sel = document.getElementById(`idxSel${i+1}`);
+    const colorPicker = document.getElementById(`idxColor${i+1}`);
+    const checkbox = document.getElementById(`idxCheck${i+1}`);
+
+    fillIdxSelect(sel, idxAvail, idxKeys[i]);
+    colorPicker.value = idxColors[i];
+    checkbox.checked = idxVisible[i];
+
+    sel.addEventListener("change", ()=>{
+      idxKeys[i] = sel.value || "";
+      if(idxKeys[i]) idxVisible[i] = true;
+      try{ localStorage.setItem("idxKeys_v1", JSON.stringify(idxKeys)); }catch(e){}
+      try{ localStorage.setItem("idxVisible_v1", JSON.stringify(idxVisible)); }catch(e){}
+      redrawAll();
+    });
+
+    colorPicker.addEventListener("input", ()=>{
+      idxColors[i] = colorPicker.value;
+      try{ localStorage.setItem("idxColors_v1", JSON.stringify(idxColors)); }catch(e){}
+      redrawAll();
+    });
+
+    checkbox.addEventListener("change", ()=>{
+      idxVisible[i] = checkbox.checked;
+      try{ localStorage.setItem("idxVisible_v1", JSON.stringify(idxVisible)); }catch(e){}
+      redrawAll();
+    });
+  }
+
+  // 部門別セレクト（累積：8つ、差引累計項目のみ）
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    const sel = document.getElementById(`tseSel${i+1}`);
+    const colorPicker = document.getElementById(`tseColor${i+1}`);
+    const checkbox = document.getElementById(`tseCheck${i+1}`);
+
+    fillTseSelect(sel, cumAvail, tseKeys[i]);
+    colorPicker.value = tseColors[i];
+    checkbox.checked = tseVisible[i];
+
+    // プルダウンを開くときにプレフィックス付きの表示に戻す
+    sel.addEventListener("focus", ()=>{
+      restoreSelectDisplay(sel);
+    });
+
+    // プルダウンを閉じるときにプレフィックスなしの表示に変更
+    sel.addEventListener("blur", ()=>{
+      updateSelectDisplay(sel);
+    });
+
+    sel.addEventListener("change", ()=>{
+      tseKeys[i] = sel.value || "";
+      // 何かを選択したら表示をONにする
+      if(tseKeys[i]) tseVisible[i] = true;
+      try{ localStorage.setItem("tseKeys_v3", JSON.stringify(tseKeys)); }catch(e){}
+      try{ localStorage.setItem("tseVisible_v2", JSON.stringify(tseVisible)); }catch(e){}
+      // 選択後の表示をプレフィックスなしに更新
+      updateSelectDisplay(sel);
+      redrawAll();
+    });
+
+    colorPicker.addEventListener("input", ()=>{
+      tseColors[i] = colorPicker.value;
+      try{ localStorage.setItem("tseColors_v2", JSON.stringify(tseColors)); }catch(e){}
+      redrawAll();
+    });
+
+    checkbox.addEventListener("change", ()=>{
+      tseVisible[i] = checkbox.checked;
+      try{ localStorage.setItem("tseVisible_v2", JSON.stringify(tseVisible)); }catch(e){}
+      redrawAll();
+    });
+  }
+
+  // 部門別セレクト（増減：8つ、個別項目のみ）
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    const sel = document.getElementById(`barSel${i+1}`);
+    const colorPicker = document.getElementById(`barColor${i+1}`);
+    const checkbox = document.getElementById(`barCheck${i+1}`);
+
+    fillTseSelect(sel, barAvail, barKeys[i]);
+    colorPicker.value = barColors[i];
+    checkbox.checked = barVisible[i];
+
+    sel.addEventListener("focus", ()=>{ restoreSelectDisplay(sel); });
+    sel.addEventListener("blur", ()=>{ updateSelectDisplay(sel); });
+
+    sel.addEventListener("change", ()=>{
+      barKeys[i] = sel.value || "";
+      if(barKeys[i]) barVisible[i] = true;
+      try{ localStorage.setItem("barKeys_v1", JSON.stringify(barKeys)); }catch(e){}
+      try{ localStorage.setItem("barVisible_v1", JSON.stringify(barVisible)); }catch(e){}
+      updateSelectDisplay(sel);
+      redrawAll();
+    });
+
+    colorPicker.addEventListener("input", ()=>{
+      barColors[i] = colorPicker.value;
+      try{ localStorage.setItem("barColors_v1", JSON.stringify(barColors)); }catch(e){}
+      redrawAll();
+    });
+
+    checkbox.addEventListener("change", ()=>{
+      barVisible[i] = checkbox.checked;
+      try{ localStorage.setItem("barVisible_v1", JSON.stringify(barVisible)); }catch(e){}
+      redrawAll();
+    });
+  }
+
+  // 政府統計セレクト（8つ、フラットな一覧。複数選択時は起点100比較）
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    const sel = document.getElementById(`bojSel${i+1}`);
+    const colorPicker = document.getElementById(`bojColor${i+1}`);
+    const checkbox = document.getElementById(`bojCheck${i+1}`);
+    if(!sel || !colorPicker || !checkbox) continue;
+
+    fillBojSelect(sel, bojOptions, bojKeys[i]);
+    colorPicker.value = bojColors[i];
+    checkbox.checked = bojVisible[i];
+
+    sel.addEventListener("change", ()=>{
+      bojKeys[i] = sel.value || "";
+      if(bojKeys[i]) bojVisible[i] = true;
+      try{ localStorage.setItem("bojKeys_v1", JSON.stringify(bojKeys)); }catch(e){}
+      try{ localStorage.setItem("bojVisible_v1", JSON.stringify(bojVisible)); }catch(e){}
+      redrawAll();
+    });
+
+    colorPicker.addEventListener("input", ()=>{
+      bojColors[i] = colorPicker.value;
+      try{ localStorage.setItem("bojColors_v1", JSON.stringify(bojColors)); }catch(e){}
+      redrawAll();
+    });
+
+    checkbox.addEventListener("change", ()=>{
+      bojVisible[i] = checkbox.checked;
+      try{ localStorage.setItem("bojVisible_v1", JSON.stringify(bojVisible)); }catch(e){}
+      redrawAll();
+    });
+  }
+}
+
+/* ========= 政府統計（日銀API）loaders ========= */
+// 政府統計CSVは update_boj.js が常にUTF-8で出力するため、UTF-8固定で読む。
+async function fetchTextUtf8(url){
+  const res = await fetch(url, {cache:"no-store"});
+  if(!res.ok) throw new Error(`${url} fetch失敗: ${res.status} ${res.statusText}`);
+  const buf = await res.arrayBuffer();
+  return new TextDecoder("utf-8", {fatal:false}).decode(buf);
+}
+function normalizeBojDate(s){
+  s = String(s || "").trim().replace(/\//g, "-");
+  if(/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  if(/^\d{6}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}`;
+  return s;
+}
+// ワイド形式CSV（Date,<code1>,<code2>,...）→ Map(code -> [{date,value}])
+function parseBojWide(text){
+  const map = new Map();
+  const lines = text.trim().split(/\r?\n/);
+  if(lines.length < 2) return map;
+  const delim = detectDelimiter(lines[0]);
+  const header = parseDelimitedLine(lines[0], delim).map(cleanHeaderValue);
+  const dateIdx = header.indexOf("Date") >= 0 ? header.indexOf("Date") : header.indexOf("日付");
+  if(dateIdx < 0) return map;
+  const codes = header.map((h, i) => ({ h, i })).filter(x => x.i !== dateIdx && x.h);
+  for(const c of codes) map.set(c.h, []);
+  for(let i = 1; i < lines.length; i++){
+    const cols = parseDelimitedLine(lines[i], delim);
+    if(!cols || cols.length === 0) continue;
+    const date = normalizeBojDate((cols[dateIdx] || "").trim());
+    if(!date) continue;
+    for(const c of codes){
+      const v = toNum(cols[c.i]);
+      if(Number.isNaN(v)) continue;
+      map.get(c.h).push({ date, value: v });
+    }
+  }
+  return map;
+}
+// 汎用：ヘッダ名でインデックスを引く区切りファイルパーサ → [{...}]
+function parseKeyedCsv(text){
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith("#"));
+  if(lines.length < 2) return [];
+  const delim = detectDelimiter(lines[0]);
+  const header = parseDelimitedLine(lines[0], delim).map(h => cleanHeaderValue(h).toLowerCase());
+  const rows = [];
+  for(let i = 1; i < lines.length; i++){
+    const cols = parseDelimitedLine(lines[i], delim);
+    if(!cols || cols.length === 0) continue;
+    const obj = {};
+    header.forEach((h, j) => { obj[h] = (cols[j] != null ? String(cols[j]).replace(/^"+|"+$/g, "").trim() : ""); });
+    rows.push(obj);
+  }
+  return rows;
+}
+function parseBojCatalog(text){
+  return parseKeyedCsv(text).map(o => ({
+    file: o.file || o["ファイル"] || "",
+    code: o.code || o["系列コード"] || "",
+    name: o.name || o["表示名"] || o.name_j || "",
+    unit: o.unit || "",
+    freq: o.freq || o.frequency || "",
+    agg:  (o.agg || o["集約"] || "").toLowerCase()
+  })).filter(c => c.file && c.code);
+}
+function parseBojList(text){
+  return parseKeyedCsv(text).map(o => ({
+    file: o.file || o["ファイル"] || "",
+    code: o.code || o["系列コード"] || "",
+    display: o["表示名"] || o.name || o.display || "",
+    agg: (o["集約"] || o.agg || "").toLowerCase()
+  })).filter(e => e.file && e.code);
+}
+
+// 政府統計データを data/boj/ から読み込む。bojlist.csv（厳選）を優先し、無ければ _catalog.csv 全件。
+async function loadBojData(){
+  bojRows = []; bojAvail = []; bojAgg = new Map(); bojByCat = new Map(); bojCats = []; bojOptions = [];
+
+  let catalog = [];
+  try{ catalog = parseBojCatalog(await fetchTextUtf8("./data/boj/_catalog.csv")); }catch(e){ /* 未収集 */ }
+  const catByKey = new Map();
+  for(const c of catalog) catByKey.set(c.file + "|" + c.code, c);
+
+  let entries = [];
+  try{ entries = parseBojList(await fetchTextUtf8("./bojlist.csv")); }catch(e){ /* 任意 */ }
+  if(!entries.length){
+    entries = catalog.map(c => ({ file: c.file, code: c.code, display: c.name || c.code, agg: c.agg || "" }));
+  }
+  if(!entries.length) return; // データ・リストとも無し
+
+  // 表示名と集約方法を解決
+  const resolved = entries.map(e => {
+    const cat = catByKey.get(e.file + "|" + e.code);
+    let display = e.display || (cat && cat.name) || e.code;
+    let agg = (e.agg === "last" || e.agg === "sum") ? e.agg : ((cat && (cat.agg === "last" || cat.agg === "sum")) ? cat.agg : "last");
+    return { file: e.file, code: e.code, display, agg };
+  });
+  // 表示名の重複はコード付与で一意化
+  const nameCount = new Map();
+  for(const r of resolved) nameCount.set(r.display, (nameCount.get(r.display) || 0) + 1);
+  for(const r of resolved){ if(nameCount.get(r.display) > 1) r.display = `${r.display}(${r.code})`; }
+
+  // 必要なデータファイルを一度ずつ読み込む
+  const files = Array.from(new Set(resolved.map(r => r.file)));
+  const fileData = new Map();
+  for(const f of files){
+    try{ fileData.set(f, parseBojWide(await fetchTextUtf8(`./data/boj/${encodeURIComponent(f)}.csv`))); }
+    catch(e){ /* skip */ }
+  }
+
+  const seen = new Set();
+  const catOrder = [];
+  for(const r of resolved){
+    const fd = fileData.get(r.file);
+    if(!fd) continue;
+    const series = fd.get(r.code);
+    if(!series || !series.length) continue;
+    if(!seen.has(r.display)){ bojAvail.push(r.display); seen.add(r.display); }
+    bojAgg.set(r.display, r.agg);
+    if(!bojByCat.has(r.file)){ bojByCat.set(r.file, []); catOrder.push(r.file); }
+    const arr = bojByCat.get(r.file);
+    if(!arr.includes(r.display)) arr.push(r.display);
+    for(const pt of series) bojRows.push({ date: pt.date, name: r.display, value: pt.value });
+  }
+  bojCats = catOrder.map(file => ({ file, label: BOJ_CATEGORY_LABELS[file] || file }));
+}
+
+// プルダウン候補を「大分類・項目」表記で全項目横断に構築する（value=表示名）
+function buildBojOptions(){
+  bojOptions = [];
+  for(const c of bojCats){
+    const label = c.label;
+    for(const name of (bojByCat.get(c.file) || [])){
+      bojOptions.push({ value: name, text: label + "・" + name });
+    }
+  }
+}
+// 表示名（value）と「大分類・項目」（text）を持つ候補でセレクトを埋める
+function fillBojSelect(selectEl, options, current){
+  selectEl.innerHTML = "";
+  const optEmpty = document.createElement("option");
+  optEmpty.value = "";
+  optEmpty.textContent = "— 選択してください —";
+  selectEl.appendChild(optEmpty);
+  for(const o of options){
+    const opt = document.createElement("option");
+    opt.value = o.value;
+    opt.textContent = o.text;
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = current || "";
+}
+
+/* ========= main load ========= */
+async function autoLoad(){
+  const statusEl = document.getElementById("status");
+
+  // 指数データは list.csv の各銘柄ごとに data/ 配下の四本値CSV(終値)から読み込む（後段で実施）
+  idxRows = [];
+  statusEl.textContent = "指数データ読み込み中…";
+
+  // 部門別データ
+  tseRows = [];
+  try{
+    statusEl.textContent += " / TSEPrime.csv 読み込み中…";
+    const txt2 = await fetchTextAutoEncoding("./data/TSEPrime.csv");
+    tseRows = parseTsePrimeToLong(txt2);
+  }catch(e){
+    console.warn(e);
+    statusEl.textContent += ` / TSEPrime 読込エラー: ${e.message}`;
+  }
+
+  // 政府統計（日銀API）データ
+  try{
+    statusEl.textContent += " / 日銀統計 読み込み中…";
+    await loadBojData();
+  }catch(e){
+    console.warn(e);
+  }
+
+  // プルダウン用リスト
+  let idxList = null;
+  let tseList = null;
+  try{ idxList = await loadNameList("./list.csv"); }catch(e){ console.warn(e); }
+  try{ tseList = await loadNameList("./bumonlist.csv"); }catch(e){ console.warn(e); }
+
+  // list.csv の各指数を data/ 配下の四本値CSV(終値)から読み込む（指数データの唯一の取得元）
+  if(idxList){
+    for(const name of idxList){
+      for(const base of idxDataFileCandidates(name)){
+        try{
+          const res = await fetch(`./data/${encodeURIComponent(base)}.csv`, {cache:"no-store"});
+          if(!res.ok) continue;
+          const buf = await res.arrayBuffer();
+          const txt = new TextDecoder("utf-8", {fatal:false}).decode(buf);
+          const rows = parseOhlcCloseToLong(txt, name);
+          if(rows.length){
+            idxRows = idxRows.filter(r => r.name !== name).concat(rows);
+          }
+          break; // 候補ファイルがヒットしたら終了
+        }catch(e){ /* 次の候補ファイルへ */ }
+      }
+    }
+  }
+
+  const idxNamesFromData = uniqSorted(idxRows.map(r => r.name));
+  const tseNamesFromData = uniqSorted(tseRows.map(r => r.name));
+
+  idxAvail = (idxList ? idxList.filter(n => idxNamesFromData.includes(n)) : idxNamesFromData);
+  if(idxAvail.length === 0) idxAvail = idxNamesFromData;
+
+  // 部門別リストのフィルタリング（表示順リストを尊重）
+  if(tseList){
+    tseAvail = tseList.filter(n => {
+      const trimmed = n.trim();
+      // セパレータ行は常に含める
+      if(trimmed.startsWith("ー") && trimmed.endsWith("ー")) return true;
+      // キー名を抽出
+      const keyName = extractKeyFromDisplayName(n);
+      // 合成項目（金融_差引累計、法人_差引累計）は常に含める
+      if(COMPOSITE_FIELDS.hasOwnProperty(keyName)) return true;
+      // 差引累計項目の場合、ベースとなる差引がデータに存在するか確認
+      if(keyName.endsWith("_差引累計")){
+        const baseKey = keyName.replace("_差引累計", "_差引");
+        return tseNamesFromData.includes(baseKey);
+      }
+      // 通常の項目はデータに存在するか確認
+      return tseNamesFromData.includes(keyName);
+    });
+  } else {
+    tseAvail = tseNamesFromData;
+  }
+  if(tseAvail.length === 0) tseAvail = tseNamesFromData;
+
+  // メニューを分割：累積チャート＝「ー差引累計ー」グループ、増減チャート＝「ー個別項目ー」グループ
+  cumAvail = [];
+  barAvail = [];
+  {
+    let group = "";
+    for(const n of tseAvail){
+      const t = n.trim();
+      if(t.startsWith("ー") && t.endsWith("ー")){ group = t; continue; }
+      if(group === "ー個別項目ー") barAvail.push(n);
+      else cumAvail.push(n);
+    }
+  }
+  if(cumAvail.length === 0) cumAvail = tseAvail;
+  if(barAvail.length === 0) barAvail = tseNamesFromData.filter(n => !n.endsWith("_差引累計"));
+
+  // 日付軸
+  idxDates = buildDateList(idxRows);
+  tseDates = buildDateList(tseRows);
+  globalDates = buildGlobalDates(idxRows, tseRows);
+
+  // restore selections
+  try{
+    const raw = localStorage.getItem("idxKeys_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        idxKeys = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> (arr[i] && idxAvail.includes(arr[i])) ? arr[i] : "");
+      }
+    } else {
+      // 旧バージョン（単一選択）からの移行
+      const old = localStorage.getItem("idxKey_v4");
+      if(old && idxAvail.includes(old)) idxKeys[0] = old;
+    }
+  }catch(e){}
+  try{
+    const raw = localStorage.getItem("idxColors_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        idxColors = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> arr[i] || IDX_DEFAULT_COLORS[i]);
+      }
+    }
+  }catch(e){}
+  try{
+    const raw = localStorage.getItem("idxVisible_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        idxVisible = new Array(TSE_SELECTION_COUNT).fill(true).map((_, i)=> arr[i] !== false);
+      }
+    }
+  }catch(e){}
+
+  try{
+    const raw = localStorage.getItem("tseKeys_v3");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        tseKeys = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> arr[i] || "");
+      }
+    }
+  }catch(e){}
+
+  try{
+    const raw = localStorage.getItem("tseColors_v2");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        tseColors = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> arr[i] || DEFAULT_COLORS[i]);
+      }
+    }
+  }catch(e){}
+
+  try{
+    const raw = localStorage.getItem("tseVisible_v2");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        tseVisible = new Array(TSE_SELECTION_COUNT).fill(true).map((_, i)=> arr[i] !== false);
+      }
+    }
+  }catch(e){}
+
+  // 増減チャートの選択状態を復元
+  try{
+    const raw = localStorage.getItem("barKeys_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        barKeys = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> arr[i] || "");
+      }
+    }
+  }catch(e){}
+  try{
+    const raw = localStorage.getItem("barColors_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        barColors = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> arr[i] || DEFAULT_COLORS[i]);
+      }
+    }
+  }catch(e){}
+  try{
+    const raw = localStorage.getItem("barVisible_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        barVisible = new Array(TSE_SELECTION_COUNT).fill(true).map((_, i)=> arr[i] !== false);
+      }
+    }
+  }catch(e){}
+
+  // プルダウン候補（全項目横断・「大分類・項目」表記）を構築
+  buildBojOptions();
+
+  // 政府統計チャートの選択状態を復元（全項目から）
+  try{
+    const raw = localStorage.getItem("bojKeys_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        bojKeys = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> (arr[i] && bojAvail.includes(arr[i])) ? arr[i] : "");
+      }
+    }
+  }catch(e){}
+  try{
+    const raw = localStorage.getItem("bojColors_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        bojColors = new Array(TSE_SELECTION_COUNT).fill("").map((_, i)=> arr[i] || BOJ_DEFAULT_COLORS[i]);
+      }
+    }
+  }catch(e){}
+  try{
+    const raw = localStorage.getItem("bojVisible_v1");
+    if(raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)){
+        bojVisible = new Array(TSE_SELECTION_COUNT).fill(true).map((_, i)=> arr[i] !== false);
+      }
+    }
+  }catch(e){}
+  // 政府統計のデフォルト：先頭から最大2系列を自動選択
+  if(!bojKeys.some(k => k)){
+    for(let i=0; i<Math.min(2, bojAvail.length); i++) bojKeys[i] = bojAvail[i];
+  }
+
+  // 旧バージョンの保存値を整理（累積チャート＝累計項目のみ、増減チャート＝個別項目のみ）
+  tseKeys = tseKeys.map(k => (k && k.endsWith("_差引累計")) ? k : "");
+  barKeys = barKeys.map(k => (k && !k.endsWith("_差引累計")) ? k : "");
+
+  // デフォルト値設定
+  // 株価指数のデフォルト: TOPIX終値
+  if(!idxKeys.some(k => k)){
+    if(idxAvail.includes("TOPIX終値")){
+      idxKeys[0] = "TOPIX終値";
+    } else if(idxAvail[0]){
+      idxKeys[0] = idxAvail[0];
+    }
+  }
+
+  // 部門別のデフォルト：自己計、個人、海外投資家、投資信託、金融、法人の差引累計
+  const defaultTseKeys = [
+    "自己計_差引累計",
+    "個人_差引累計",
+    "海外投資家_差引累計",
+    "投資信託_差引累計",
+    "金融_差引累計",
+    "法人_差引累計",
+    "",
+    ""
+  ];
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    if(!tseKeys[i] && defaultTseKeys[i]) {
+      const key = defaultTseKeys[i];
+      // 合成項目（金融_差引累計、法人_差引累計）の場合は直接設定
+      if(COMPOSITE_FIELDS.hasOwnProperty(key)){
+        tseKeys[i] = key;
+      } else {
+        // 累計の場合、ベースとなる差引が存在するかチェック
+        const baseKey = key.replace("_差引累計", "_差引");
+        const tseNamesFromData = uniqSorted(tseRows.map(r => r.name));
+        if(tseNamesFromData.includes(baseKey)){
+          tseKeys[i] = key;
+        }
+      }
+    }
+  }
+
+  // 増減チャートのデフォルト：個人・海外投資家の差引
+  const defaultBarKeys = ["個人_差引", "海外投資家_差引", "", "", "", "", "", ""];
+  for(let i=0; i<TSE_SELECTION_COUNT; i++){
+    if(!barKeys[i] && defaultBarKeys[i] && barAvail.some(n => extractKeyFromDisplayName(n) === defaultBarKeys[i])){
+      barKeys[i] = defaultBarKeys[i];
+    }
+  }
+
+  const baseDatesLoaded = tseDates.length > 0 ? tseDates : globalDates;
+  displayCount = Math.max(10, Math.min(displayCount, MAX_DISPLAY, baseDatesLoaded.length || displayCount));
+  offsetX = 0;
+  syncCountControls();
+  updateTopChips();
+
+  bindSelects();
+  redrawAll();
+
+  statusEl.textContent =
+    `ロード完了: 日付 ${globalDates.length.toLocaleString()} / 指数行 ${idxRows.length.toLocaleString()} / 部門行 ${tseRows.length.toLocaleString()}`;
+}
+
+/* ========= init ========= */
+function init(){
+  idxCanvas = document.getElementById("idxChart");
+  tseCanvas = document.getElementById("tseChart");
+  barCanvas = document.getElementById("barChart");
+  bojCanvas = document.getElementById("bojChart");
+  idxCtx = idxCanvas.getContext("2d");
+  tseCtx = tseCanvas.getContext("2d");
+  barCtx = barCanvas.getContext("2d");
+  bojCtx = bojCanvas.getContext("2d");
+  tooltip = document.getElementById("tooltip");
+
+  bindControls();
+  bindGranularity();
+  const doResize = ()=>{
+    resizeCanvas(idxCanvas);
+    resizeCanvas(tseCanvas);
+    resizeCanvas(barCanvas);
+    resizeCanvas(bojCanvas);
+    redrawAll();
+  };
+  window.addEventListener("resize", doResize);
+  doResize();
+
+  // 保存済みのチャート高さを復元
+  try{
+    const saved = JSON.parse(localStorage.getItem("chartHeights_v1") || "{}");
+    for(const id of ["idxBox", "tseBox", "barBox", "bojBox"]){
+      const h = parseInt(saved[id], 10);
+      if(h >= 120) document.getElementById(id).style.height = h + "px";
+    }
+  }catch(e){}
+
+  // ドラッグハンドルで各チャートの高さを調節
+  for(const handle of document.querySelectorAll(".resizeHandle")){
+    const box = document.getElementById(handle.dataset.target);
+    if(!box) continue;
+    handle.addEventListener("pointerdown", (e)=>{
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      const startY = e.clientY;
+      const startH = box.getBoundingClientRect().height;
+      const onMove = (ev)=>{
+        box.style.height = Math.max(120, startH + (ev.clientY - startY)) + "px";
+      };
+      const onUp = ()=>{
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        try{
+          const saved = JSON.parse(localStorage.getItem("chartHeights_v1") || "{}");
+          saved[handle.dataset.target] = Math.round(box.getBoundingClientRect().height);
+          localStorage.setItem("chartHeights_v1", JSON.stringify(saved));
+        }catch(err){}
+      };
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+    });
+  }
+
+  // 各チャートの上下幅調節（canvasBoxのCSS resizeに追従して再描画）
+  if(window.ResizeObserver){
+    const ro = new ResizeObserver(()=>{ doResize(); });
+    for(const id of ["idxBox", "tseBox", "barBox", "bojBox"]){
+      const box = document.getElementById(id);
+      if(box) ro.observe(box);
+    }
+  }
+
+  for(const c of [idxCanvas, tseCanvas, barCanvas, bojCanvas]){
+    c.addEventListener("wheel", onWheelZoom, {passive:false});
+    c.addEventListener("mousedown", (e)=>onMouseDown(e, c));
+    c.addEventListener("mousemove", (e)=>{
+      onMouseMove(e);
+      if(!isDragging){
+        updateHoverIndex(e, c);
+        const data = (c === idxCanvas ? idxData : (c === tseCanvas ? tseData : (c === bojCanvas ? bojData : barData)));
+        showTooltipForCanvas(e, c, data);
+      }
+    });
+    c.addEventListener("mouseup", onMouseUp);
+    c.addEventListener("mouseleave", onMouseLeave);
+  }
+  window.addEventListener("mouseup", onMouseUp);
+
+  // チャートの並び替え（↑↓ボタン）と保存順の復元
+  {
+    const cardIds = ["idxCard", "tseCard", "barCard", "bojCard"];
+    const parent = document.getElementById("idxCard").parentElement;
+    try{
+      const order = JSON.parse(localStorage.getItem("chartOrder_v1") || "null");
+      if(Array.isArray(order)){
+        for(const id of order){
+          const el = document.getElementById(id);
+          if(el && cardIds.includes(id)) parent.appendChild(el);
+        }
+      }
+    }catch(e){}
+    const saveOrder = ()=>{
+      const order = [...parent.querySelectorAll(".chartCard")].map(el => el.id);
+      try{ localStorage.setItem("chartOrder_v1", JSON.stringify(order)); }catch(e){}
+    };
+    for(const btn of document.querySelectorAll(".btnCol .upBtn")){
+      const card = document.getElementById(btn.dataset.card);
+      btn.addEventListener("click", ()=>{
+        const prev = card.previousElementSibling;
+        if(prev && prev.classList.contains("chartCard")){
+          parent.insertBefore(card, prev);
+          saveOrder();
+        }
+      });
+    }
+    for(const btn of document.querySelectorAll(".btnCol .downBtn")){
+      const card = document.getElementById(btn.dataset.card);
+      btn.addEventListener("click", ()=>{
+        const next = card.nextElementSibling;
+        if(next && next.classList.contains("chartCard")){
+          parent.insertBefore(next, card);
+          saveOrder();
+        }
+      });
+    }
+  }
+
+  // チャート領域内のオーバーレイ（題名＋凡例）をドラッグで移動
+  {
+    let ovPos = {};
+    try{ ovPos = JSON.parse(localStorage.getItem("overlayPos_v1") || "{}") || {}; }catch(e){}
+    // 文字の大きさ（拡大縮小倍率）は3チャート共通：不揃いにならないようルート要素に適用
+    let ovScale = 1;
+    try{
+      const s = parseFloat(localStorage.getItem("ovScale_v1"));
+      if(Number.isFinite(s) && s >= 0.5 && s <= 3) ovScale = s;
+    }catch(e){}
+    const applyScale = (s)=>{
+      ovScale = Math.min(3, Math.max(0.5, s));
+      document.documentElement.style.setProperty("--ovScale", ovScale);
+    };
+    if(ovScale !== 1) applyScale(ovScale);
+    for(const ov of document.querySelectorAll(".chartOverlay")){
+      const key = ov.dataset.pos;
+      const box = ov.parentElement;
+      const p = ovPos[key];
+      if(p && Number.isFinite(p.x) && Number.isFinite(p.y)){
+        ov.style.left = p.x + "px";
+        ov.style.top = p.y + "px";
+      }
+      if(p && Number.isFinite(p.w) && p.w >= 120){
+        ov.style.width = p.w + "px";
+      }
+      ov.addEventListener("pointerdown", (e)=>{
+        if(e.target.closest(".swatch")) return; // 凡例の色クリックはドラッグにしない
+        e.preventDefault();
+        ov.setPointerCapture(e.pointerId);
+        const resizing = !!e.target.closest(".ovResize");
+        const scaling = !!e.target.closest(".ovScale");
+        const startX = e.clientX, startY = e.clientY;
+        const startL = ov.offsetLeft, startT = ov.offsetTop;
+        const startW = ov.offsetWidth;
+        const startScale = ovScale;
+        const onMove = (ev)=>{
+          if(scaling){
+            // 右下のつまみ：斜めドラッグで文字の大きさを変更（0.5～3倍、3チャート連動）
+            const d = ((ev.clientX - startX) + (ev.clientY - startY)) / 2;
+            applyScale(startScale * (1 + d / 150));
+          } else if(resizing){
+            // 右端のつまみ：横ドラッグで幅を変更（狭くすると項目が縦並びになる）
+            const maxW = box.clientWidth - ov.offsetLeft;
+            ov.style.width = Math.min(Math.max(120, startW + ev.clientX - startX), maxW) + "px";
+          } else {
+            const maxL = Math.max(0, box.clientWidth - ov.offsetWidth);
+            const maxT = Math.max(0, box.clientHeight - ov.offsetHeight);
+            ov.style.left = Math.min(Math.max(0, startL + ev.clientX - startX), maxL) + "px";
+            ov.style.top = Math.min(Math.max(0, startT + ev.clientY - startY), maxT) + "px";
+          }
+        };
+        const onUp = ()=>{
+          ov.removeEventListener("pointermove", onMove);
+          ov.removeEventListener("pointerup", onUp);
+          ovPos[key] = {x: ov.offsetLeft, y: ov.offsetTop, w: ov.offsetWidth};
+          try{ localStorage.setItem("overlayPos_v1", JSON.stringify(ovPos)); }catch(err){}
+          try{ localStorage.setItem("ovScale_v1", String(ovScale)); }catch(err){}
+        };
+        ov.addEventListener("pointermove", onMove);
+        ov.addEventListener("pointerup", onUp);
+      });
+    }
+  }
+
+  // 左右の白スペース幅をドラッグで調整（3チャート共有：どれかを変えると全て連動し、時系列の縦軸が常に揃う）
+  {
+    let pw = {};
+    try{ pw = JSON.parse(localStorage.getItem("paneWidths_v2") || "{}") || {}; }catch(e){}
+    const applySide = (side, w)=>{
+      w = Math.min(600, Math.max(0, w));
+      for(const pane of document.querySelectorAll(`.sidePane[data-side="${side}"]`)){
+        pane.style.width = w + "px";
+      }
+      return w;
+    };
+    if(Number.isFinite(pw.l)) applySide("l", pw.l);
+    if(Number.isFinite(pw.r)) applySide("r", pw.r);
+    for(const grip of document.querySelectorAll(".paneDiv")){
+      const side = grip.dataset.side;
+      const pane = document.querySelector(`.sidePane[data-key="${grip.dataset.key}"][data-side="${side}"]`);
+      if(!pane) continue;
+      grip.addEventListener("pointerdown", (e)=>{
+        e.preventDefault();
+        grip.setPointerCapture(e.pointerId);
+        const startX = e.clientX;
+        const startW = pane.getBoundingClientRect().width;
+        let cur = startW;
+        const onMove = (ev)=>{
+          const dx = ev.clientX - startX;
+          cur = applySide(side, side === "l" ? startW + dx : startW - dx);
+        };
+        const onUp = ()=>{
+          grip.removeEventListener("pointermove", onMove);
+          grip.removeEventListener("pointerup", onUp);
+          pw[side === "l" ? "l" : "r"] = Math.round(cur);
+          try{ localStorage.setItem("paneWidths_v2", JSON.stringify(pw)); }catch(err){}
+        };
+        grip.addEventListener("pointermove", onMove);
+        grip.addEventListener("pointerup", onUp);
+      });
+    }
+  }
+
+  // 時系列（年月日）ラベルの表示/非表示（チャートごとの±ボタン）
+  {
+    try{
+      const saved = JSON.parse(localStorage.getItem("dateLabelsHidden_v1") || "{}") || {};
+      for(const k of ["idx","tse","bar"]) dateLabelsHidden[k] = saved[k] === true;
+    }catch(e){}
+    for(const btn of document.querySelectorAll(".btnCol .dateBtn")){
+      const key = btn.dataset.key;
+      const apply = (hidden)=>{
+        dateLabelsHidden[key] = hidden;
+        btn.textContent = hidden ? "＋" : "－";
+        try{ localStorage.setItem("dateLabelsHidden_v1", JSON.stringify(dateLabelsHidden)); }catch(e){}
+      };
+      apply(!!dateLabelsHidden[key]);
+      btn.addEventListener("click", ()=>{
+        apply(!dateLabelsHidden[key]);
+        redrawAll();
+      });
+    }
+  }
+
+  // 項目選択欄の表示/非表示（チャート横の±ボタン）。全チャート共通
+  {
+    let sh = {};
+    try{ sh = JSON.parse(localStorage.getItem("selRowHidden_v1") || "{}") || {}; }catch(e){}
+    for(const btn of document.querySelectorAll(".btnCol .selBtn")){
+      const row = document.getElementById(btn.dataset.row);
+      if(!row) continue;
+      const apply = (hidden)=>{
+        row.classList.toggle("hidden", hidden);
+        btn.textContent = hidden ? "＋" : "－";
+        sh[row.id] = hidden;
+        try{ localStorage.setItem("selRowHidden_v1", JSON.stringify(sh)); }catch(e){}
+      };
+      apply(!!sh[row.id]);
+      btn.addEventListener("click", ()=> apply(!row.classList.contains("hidden")));
+    }
+  }
+
+  // 各チャートの縮小（－ボタンでプルダウンとチャート本体を折りたたみ）
+  for(const [btnId, cardId] of [["idxToggleBtn","idxCard"], ["tseToggleBtn","tseCard"], ["barToggleBtn","barCard"], ["bojToggleBtn","bojCard"]]){
+    const btn = document.getElementById(btnId);
+    const card = document.getElementById(cardId);
+    if(!btn || !card) continue;
+    btn.addEventListener("click", ()=>{
+      const collapsed = card.classList.toggle("collapsed");
+      btn.textContent = collapsed ? "＋" : "－";
+      if(!collapsed) doResize();
+    });
+  }
+
+  // 色テーマ切替（押すごとに 背景黒 → 全体黒 → 元に戻る）
+  {
+    const themeBtn = document.getElementById("themeBtn");
+    const THEMES = ["", "bg-dark", "full-dark"];
+    let theme = "";
+    try{
+      const t = localStorage.getItem("theme_v1");
+      if(THEMES.includes(t)) theme = t;
+    }catch(e){}
+    const applyTheme = ()=>{
+      document.body.classList.remove("bg-dark", "full-dark");
+      if(theme) document.body.classList.add(theme);
+      try{ localStorage.setItem("theme_v1", theme); }catch(e){}
+    };
+    applyTheme();
+    themeBtn.addEventListener("click", ()=>{
+      theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+      applyTheme();
+      redrawAll(); // チャート内の文字色をテーマに合わせて再描画
+    });
+  }
+
+  // 説明モーダル
+  const helpBtn = document.getElementById("helpBtn");
+  const helpModal = document.getElementById("helpModal");
+  const modalClose = document.getElementById("modalClose");
+
+  helpBtn.addEventListener("click", ()=>{
+    helpModal.classList.add("show");
+  });
+  modalClose.addEventListener("click", ()=>{
+    helpModal.classList.remove("show");
+  });
+  helpModal.addEventListener("click", (e)=>{
+    if(e.target === helpModal){
+      helpModal.classList.remove("show");
+    }
+  });
+
+  autoLoad().catch(err=>{
+    console.error(err);
+    document.getElementById("status").textContent = `エラー: ${err.message}`;
+  });
+}
+window.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
