@@ -1,0 +1,28 @@
+file,code,name,unit,freq,agg
+FM01_D,STRDCLUCON,無担保コールＯ／Ｎ物レート／平均値 日次／金利,年％,DAILY,last
+FM08_D,FXERD01,東京市場　ドル・円　スポット　9時時点,￥／＄,DAILY,last
+FM08_D,FXERD04,東京市場　ドル・円　スポット　17時時点,￥／＄,DAILY,last
+FM08_D,FXERD05,東京市場　ドル・円　スポット　中心相場,￥／＄,DAILY,last
+FM08_D,FXERD31,東京市場　ユーロ・ドル　スポット　9時時点,＄／ユーロ,DAILY,last
+FM08_D,FXERD39,円インデックス,1999/1/4日＝100,DAILY,last
+FM09_M,FX180110001,名目実効為替レート指数,２０２０年＝１００,MONTHLY,last
+FM09_M,FX180110002,実質実効為替レート指数,２０２０年＝１００,MONTHLY,last
+MD01_M,MABS1AN11,マネタリーベース平均残高,億円,MONTHLY,last
+MD01_M,MABS2AN116,マネタリーベース平均残高／うち 日本銀行券発行高,億円,MONTHLY,last
+MD01_M,MABS2AN117,マネタリーベース平均残高／うち 貨幣流通高,億円,MONTHLY,last
+MD01_M,MABS1AN113,マネタリーベース平均残高／うち 日銀当座預金,億円,MONTHLY,last
+MD02_M,MAM1NAM2M2MO,Ｍ２／平／マネーストック,億円,MONTHLY,last
+MD02_M,MAM1NAM3M3MO,Ｍ３／平／マネーストック,億円,MONTHLY,last
+MD02_M,MAM1NAM3CCMO,＿＿現金通貨／平／マネーストック,億円,MONTHLY,last
+MD02_M,MAM1NAM3DMMO,＿＿預金通貨／平／マネーストック,億円,MONTHLY,last
+MD02_M,MAM1NAM3QMMO,＿準通貨／平／マネーストック,億円,MONTHLY,last
+MD02_M,MAM1NAM3CDMO,＿ＣＤ／平／マネーストック,億円,MONTHLY,last
+PR01_M,PRCG20_2200000000,[国内企業物価指数] 総平均,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2600000000,[輸入物価指数/円ベース] 総平均,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2200620001,類別/_石油・石炭製品,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2200120001,類別/_飲食料品,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2201020001,類別/_非鉄金属,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2201320001,類別/_生産用機器,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2201520001,類別/_電子部品・デバイス,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2201620001,類別/_電気機器,2020年=100,MONTHLY,last
+PR01_M,PRCG20_2201720001,類別/_情報通信機器,2020年=100,MONTHLY,last
