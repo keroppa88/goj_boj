@@ -1,0 +1,30 @@
+name: Update BOJ
+on:
+  # 当面は手動実行のみ。安定後に下のスケジュールを有効化する。
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 11 * * 5'  # JST 20:00（UTC 11:00）毎週金曜
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 政府統計（日銀API）データ更新
+      - name: Update_boj
+        run: node update_boj.js
+
+      # コミット＆プッシュ
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/boj/*.csv
+          git diff --cached --name-only
+          git commit -m "Update BOJ $(date +'%Y-%m-%d')" || exit 0
+          git push
