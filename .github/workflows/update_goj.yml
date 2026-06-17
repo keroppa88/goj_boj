@@ -1,0 +1,32 @@
+name: Update GOJ (e-Stat)
+on:
+  # 当面は手動実行のみ。安定後に下のスケジュールを有効化する。
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 12 * * 5'  # JST 21:00（UTC 12:00）毎週金曜
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 政府統計（e-Stat本体API）データ更新
+      - name: Update_goj
+        run: node update_goj.js
+        env:
+          ESTAT_APPID: ${{ secrets.ESTAT_APPID }}
+
+      # コミット＆プッシュ
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/goj/*.csv
+          git diff --cached --name-only
+          git commit -m "Update GOJ $(date +'%Y-%m-%d')" || exit 0
+          git push
