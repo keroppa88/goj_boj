@@ -515,7 +515,7 @@
               <div class="paneDiv" data-key="tse" data-side="r" title="ドラッグで右スペースの幅を調整"></div>
               <div class="sidePane rightPane" data-key="tse" data-side="r"></div>
 <div class="chartOverlay" data-pos="tse" title="ドラッグで移動">
-                <div class="ovTitle">部門別売買動向(累積)</div>
+                <div class="ovTitle">政府統計①</div>
                 <div class="legend" id="tseLegend"></div><div class="ovResize" title="ドラッグで幅を変更"></div><div class="ovScale" title="ドラッグで文字の大きさを変更"></div>
               </div>
               <div class="btnCol">
@@ -554,7 +554,7 @@
               <div class="paneDiv" data-key="bar" data-side="r" title="ドラッグで右スペースの幅を調整"></div>
               <div class="sidePane rightPane" data-key="bar" data-side="r"></div>
 <div class="chartOverlay" data-pos="bar" title="ドラッグで移動">
-                <div class="ovTitle">部門別売買動向(増減)</div>
+                <div class="ovTitle">政府統計②</div>
                 <div class="legend" id="barLegend"></div><div class="ovResize" title="ドラッグで幅を変更"></div><div class="ovScale" title="ドラッグで文字の大きさを変更"></div>
               </div>
               <div class="btnCol">
@@ -658,8 +658,8 @@ const MAX_DISPLAY = 700;
 // 折れ線グラフ描画領域の左上に出すグレー題名
 const CHART_TITLES = {
   idx: "株価指数",
-  tse: "部門別売買動向(累積)",
-  bar: "部門別売買動向(増減)",
+  tse: "政府統計①",
+  bar: "政府統計②",
   boj: "日銀統計",
 };
 const TSE_SELECTION_COUNT = 8;
@@ -756,6 +756,14 @@ let bojKeys = new Array(TSE_SELECTION_COUNT).fill("");
 let bojColors = [...BOJ_DEFAULT_COLORS];
 let bojVisible = new Array(TSE_SELECTION_COUNT).fill(true);
 let bojData = null;
+
+/* ========= 政府統計（e-Stat）state ========= */
+let gojRows = [];
+let gojAvail = [];
+let gojAgg = new Map();
+let gojByCat = new Map();
+let gojCats = [];
+let gojOptions = [];
 
 /* ========= 時間軸の粒度（日次/週次/月次）。4段連動 ========= */
 let granularity = "week";   // "day" | "week" | "month"
@@ -1194,22 +1202,22 @@ function buildTseSeries(rows, keys, colors, dates, visible, mode = "line"){
 function ymOf(d){ return String(d || "").slice(0, 7); }
 function computeBuckets(g){
   if(g === "week"){
-    const ds = tseDates.length ? tseDates : idxDates;
+    const ds = idxDates.length ? idxDates : buildDateList(gojRows);
     return ds.map(d => ({ label: d, bound: d }));
   }
   if(g === "day"){
     const set = new Set();
     for(const r of idxRows) set.add(r.date);
-    for(const r of tseRows) set.add(r.date);
     for(const r of bojRows) set.add(r.date);
+    for(const r of gojRows) set.add(r.date);
     const arr = Array.from(set).filter(Boolean).sort();
     return arr.map(d => ({ label: d, bound: d }));
   }
   // month
   const set = new Set();
   for(const r of idxRows) set.add(ymOf(r.date));
-  for(const r of tseRows) set.add(ymOf(r.date));
   for(const r of bojRows) set.add(ymOf(r.date));
+  for(const r of gojRows) set.add(ymOf(r.date));
   const arr = Array.from(set).filter(s => s && s.length >= 7).sort();
   // bound="YYYY-MM-99" は当該月内のどのYYYY-MM-DDよりも辞書順で後（'9'>数字）
   return arr.map(ym => ({ label: ym, bound: ym + "-99" }));
@@ -1878,7 +1886,10 @@ function rebuildData(){
   const idxNeeded = new Set(idxKeys.filter(Boolean));
   const idxR = resampleRows(idxRows, buckets, () => "last", idxNeeded);
 
-  const tseR = resampleRows(tseRows, buckets, () => "sum");
+  const tseNeeded = new Set(tseKeys.filter(Boolean));
+  const tseR = resampleRows(gojRows, buckets, (name) => (gojAgg.get(name) || "last"), tseNeeded);
+  const barNeeded = new Set(barKeys.filter(Boolean));
+  const barR = resampleRows(gojRows, buckets, (name) => (gojAgg.get(name) || "last"), barNeeded);
 
   const bojNeeded = new Set(bojKeys.filter(Boolean));
   const bojR = resampleRows(bojRows, buckets, (name) => (bojAgg.get(name) || "last"), bojNeeded);
@@ -1888,11 +1899,11 @@ function rebuildData(){
   idxData.dateIndex = buildDateIndex(baseDates);
 
   // 部門別データ（累積折れ線）
-  tseData = buildTseSeries(tseR, tseKeys, tseColors, baseDates, tseVisible, "line");
+  tseData = buildLevelSeries(tseR, tseKeys, tseColors, tseVisible, baseDates, DEFAULT_COLORS);
   tseData.dateIndex = buildDateIndex(baseDates);
 
   // 部門別データ（増減縦棒：粒度ごとの差引合計）
-  barData = buildTseSeries(tseR, barKeys, barColors, baseDates, barVisible, "bar");
+  barData = buildLevelSeries(barR, barKeys, barColors, barVisible, baseDates, DEFAULT_COLORS);
   barData.dateIndex = buildDateIndex(baseDates);
 
   // 政府統計（水準系・複数時は起点100比較）
@@ -1915,8 +1926,8 @@ function redrawAll(){
   const commonWindow = getVisibleWindowForDates(baseDates);
 
   drawChartGeneric(idxCtx, idxCanvas, idxData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, false);
-  drawChartGeneric(tseCtx, tseCanvas, tseData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, true);
-  drawChartGeneric(barCtx, barCanvas, barData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, true);
+  drawChartGeneric(tseCtx, tseCanvas, tseData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, false);
+  drawChartGeneric(barCtx, barCanvas, barData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, false);
   drawChartGeneric(bojCtx, bojCanvas, bojData, commonWindow.visibleDates, commonWindow.visibleAbsIndices, false);
 }
 
@@ -2063,7 +2074,7 @@ function bindSelects(){
     const colorPicker = document.getElementById(`tseColor${i+1}`);
     const checkbox = document.getElementById(`tseCheck${i+1}`);
 
-    fillTseSelect(sel, cumAvail, tseKeys[i]);
+    fillBojSelect(sel, gojOptions, tseKeys[i]);
     colorPicker.value = tseColors[i];
     checkbox.checked = tseVisible[i];
 
@@ -2107,7 +2118,7 @@ function bindSelects(){
     const colorPicker = document.getElementById(`barColor${i+1}`);
     const checkbox = document.getElementById(`barCheck${i+1}`);
 
-    fillTseSelect(sel, barAvail, barKeys[i]);
+    fillBojSelect(sel, gojOptions, barKeys[i]);
     colorPicker.value = barColors[i];
     checkbox.checked = barVisible[i];
 
@@ -2321,6 +2332,40 @@ function fillBojSelect(selectEl, options, current){
   selectEl.value = current || "";
 }
 
+// 政府統計データを data/goj/ から読み込む（Date+表示名 列のワイドCSV）。
+async function loadGojData(){
+  gojRows = []; gojAvail = []; gojAgg = new Map(); gojByCat = new Map(); gojCats = []; gojOptions = [];
+  let catalog = [];
+  try{ catalog = parseKeyedCsv(await fetchTextUtf8("./data/goj/_catalog.csv")); }catch(e){ return; }
+  if(!catalog.length) return;
+  const catOrder = [];
+  const aggByName = new Map();
+  for(const o of catalog){
+    const name = o.name || ""; const cat = o.cat || ""; if(!name || !cat) continue;
+    aggByName.set(name, (o.agg === "sum") ? "sum" : "last");
+    if(!gojByCat.has(cat)){ gojByCat.set(cat, []); catOrder.push(cat); }
+  }
+  const fileData = new Map();
+  for(const cat of catOrder){
+    try{ fileData.set(cat, parseBojWide(await fetchTextUtf8(`./data/goj/${encodeURIComponent(cat)}.csv`))); }catch(e){ /* skip */ }
+  }
+  const seen = new Set();
+  for(const o of catalog){
+    const name = o.name || ""; const cat = o.cat || ""; if(!name || !cat) continue;
+    const fd = fileData.get(cat); if(!fd) continue;
+    const series = fd.get(name); if(!series || !series.length) continue;
+    if(!seen.has(name)){ gojAvail.push(name); seen.add(name); }
+    gojAgg.set(name, aggByName.get(name) || "last");
+    const arr = gojByCat.get(cat); if(!arr.includes(name)) arr.push(name);
+    for(const pt of series) gojRows.push({ date: pt.date, name, value: pt.value });
+  }
+  gojCats = catOrder.map(cat => ({ file: cat, label: cat }));
+}
+function buildGojOptions(){
+  gojOptions = [];
+  for(const c of gojCats){ for(const name of (gojByCat.get(c.file) || [])){ gojOptions.push({ value: name, text: c.label + "・" + name }); } }
+}
+
 /* ========= main load ========= */
 async function autoLoad(){
   const statusEl = document.getElementById("status");
@@ -2344,6 +2389,15 @@ async function autoLoad(){
   try{
     statusEl.textContent += " / 日銀統計 読み込み中…";
     await loadBojData();
+  }catch(e){
+    console.warn(e);
+  }
+
+  // 政府統計（e-Stat）データ
+  try{
+    statusEl.textContent += " / 政府統計 読み込み中…";
+    await loadGojData();
+    buildGojOptions();
   }catch(e){
     console.warn(e);
   }
@@ -2551,8 +2605,8 @@ async function autoLoad(){
   }
 
   // 旧バージョンの保存値を整理（累積チャート＝累計項目のみ、増減チャート＝個別項目のみ）
-  tseKeys = tseKeys.map(k => (k && k.endsWith("_差引累計")) ? k : "");
-  barKeys = barKeys.map(k => (k && !k.endsWith("_差引累計")) ? k : "");
+  tseKeys = tseKeys.map(k => (k && gojAvail.includes(k)) ? k : "");
+  barKeys = barKeys.map(k => (k && gojAvail.includes(k)) ? k : "");
 
   // デフォルト値設定
   // 株価指数のデフォルト: TOPIX終値
@@ -2564,40 +2618,14 @@ async function autoLoad(){
     }
   }
 
-  // 部門別のデフォルト：自己計、個人、海外投資家、投資信託、金融、法人の差引累計
-  const defaultTseKeys = [
-    "自己計_差引累計",
-    "個人_差引累計",
-    "海外投資家_差引累計",
-    "投資信託_差引累計",
-    "金融_差引累計",
-    "法人_差引累計",
-    "",
-    ""
-  ];
-  for(let i=0; i<TSE_SELECTION_COUNT; i++){
-    if(!tseKeys[i] && defaultTseKeys[i]) {
-      const key = defaultTseKeys[i];
-      // 合成項目（金融_差引累計、法人_差引累計）の場合は直接設定
-      if(COMPOSITE_FIELDS.hasOwnProperty(key)){
-        tseKeys[i] = key;
-      } else {
-        // 累計の場合、ベースとなる差引が存在するかチェック
-        const baseKey = key.replace("_差引累計", "_差引");
-        const tseNamesFromData = uniqSorted(tseRows.map(r => r.name));
-        if(tseNamesFromData.includes(baseKey)){
-          tseKeys[i] = key;
-        }
-      }
-    }
+  // 政府統計①のデフォルト：先頭から最大3系列
+  if(!tseKeys.some(k => k)){
+    for(let i=0; i<Math.min(3, gojAvail.length); i++) tseKeys[i] = gojAvail[i];
   }
 
-  // 増減チャートのデフォルト：個人・海外投資家の差引
-  const defaultBarKeys = ["個人_差引", "海外投資家_差引", "", "", "", "", "", ""];
-  for(let i=0; i<TSE_SELECTION_COUNT; i++){
-    if(!barKeys[i] && defaultBarKeys[i] && barAvail.some(n => extractKeyFromDisplayName(n) === defaultBarKeys[i])){
-      barKeys[i] = defaultBarKeys[i];
-    }
+  // 政府統計②のデフォルト：先頭から最大3系列
+  if(!barKeys.some(k => k)){
+    for(let i=0; i<Math.min(3, gojAvail.length); i++) barKeys[i] = gojAvail[i];
   }
 
   const baseDatesLoaded = tseDates.length > 0 ? tseDates : globalDates;
@@ -2610,7 +2638,7 @@ async function autoLoad(){
   redrawAll();
 
   statusEl.textContent =
-    `ロード完了: 日付 ${globalDates.length.toLocaleString()} / 指数行 ${idxRows.length.toLocaleString()} / 部門行 ${tseRows.length.toLocaleString()}`;
+    `ロード完了: 日付 ${globalDates.length.toLocaleString()} / 指数行 ${idxRows.length.toLocaleString()} / 政府統計行 ${gojRows.length.toLocaleString()}`;
 }
 
 /* ========= init ========= */

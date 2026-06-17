@@ -1,0 +1,6 @@
+name,cat,statsDataId,unit,table,agg
+総合CPI,物価,SAMPLE,指数,（サンプル）,last
+コアCPI,物価,SAMPLE,指数,（サンプル）,last
+コアコアCPI,物価,SAMPLE,指数,（サンプル）,last
+財価格指数,物価,SAMPLE,指数,（サンプル）,last
+サービス価格指数,物価,SAMPLE,指数,（サンプル）,last
