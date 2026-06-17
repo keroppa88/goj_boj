@@ -1,0 +1,39 @@
+# 政府統計（日銀API）チャートに表示する系列の定義リスト。
+# このファイルが「収集」と「表示」の単一ソース。update_boj.js はここに列挙された
+# 系列だけを取得し、index.html はここに列挙された系列だけをプルダウンに出す。
+#
+# 列: 表示名,ファイル,系列コード,集約
+#   表示名 … チャート/凡例に出す日本語名
+#   ファイル … data/boj/ 内のファイル名（拡張子なし。例 FM08_D）= 大分類の単位
+#   系列コード … 日銀の系列コード（DB名は付けない）
+#   集約 … last(期末値) または sum(合計)。空なら last
+#
+# 系列コードは data/boj/_catalog.csv（収集時に生成）で確認できる。
+表示名,ファイル,系列コード,集約
+無担保コールO/N（平均）,FM01_D,STRDCLUCON,last
+ドル円 9時,FM08_D,FXERD01,last
+ドル円 17時,FM08_D,FXERD04,last
+ドル円 中心相場,FM08_D,FXERD05,last
+ユーロドル 9時,FM08_D,FXERD31,last
+円インデックス,FM08_D,FXERD39,last
+名目実効為替レート(NEER),FM09_M,FX180110001,last
+実質実効為替レート(REER),FM09_M,FX180110002,last
+マネタリーベース平均残高,MD01_M,MABS1AN11,last
+日本銀行券発行高,MD01_M,MABS2AN116,last
+貨幣流通高,MD01_M,MABS2AN117,last
+日銀当座預金,MD01_M,MABS1AN113,last
+M2(平残),MD02_M,MAM1NAM2M2MO,last
+M3(平残),MD02_M,MAM1NAM3M3MO,last
+現金通貨(平残),MD02_M,MAM1NAM3CCMO,last
+預金通貨(平残),MD02_M,MAM1NAM3DMMO,last
+準通貨(平残),MD02_M,MAM1NAM3QMMO,last
+CD(平残),MD02_M,MAM1NAM3CDMO,last
+国内企業物価 総平均,PR01_M,PRCG20_2200000000,last
+輸入物価(円ベース) 総平均,PR01_M,PRCG20_2600000000,last
+石油・石炭製品,PR01_M,PRCG20_2200620001,last
+飲食料品,PR01_M,PRCG20_2200120001,last
+非鉄金属,PR01_M,PRCG20_2201020001,last
+生産用機器,PR01_M,PRCG20_2201320001,last
+電子部品・デバイス,PR01_M,PRCG20_2201520001,last
+電気機器,PR01_M,PRCG20_2201620001,last
+情報通信機器,PR01_M,PRCG20_2201720001,last
