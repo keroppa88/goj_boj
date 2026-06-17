@@ -2702,7 +2702,7 @@ function init(){
     const cardIds = ["idxCard", "tseCard", "barCard", "bojCard"];
     const parent = document.getElementById("idxCard").parentElement;
     try{
-      const order = JSON.parse(localStorage.getItem("chartOrder_v1") || "null");
+      const order = JSON.parse(localStorage.getItem("chartOrder_v2") || "null");
       if(Array.isArray(order)){
         for(const id of order){
           const el = document.getElementById(id);
@@ -2712,7 +2712,7 @@ function init(){
     }catch(e){}
     const saveOrder = ()=>{
       const order = [...parent.querySelectorAll(".chartCard")].map(el => el.id);
-      try{ localStorage.setItem("chartOrder_v1", JSON.stringify(order)); }catch(e){}
+      try{ localStorage.setItem("chartOrder_v2", JSON.stringify(order)); }catch(e){}
     };
     for(const btn of document.querySelectorAll(".btnCol .upBtn")){
       const card = document.getElementById(btn.dataset.card);
