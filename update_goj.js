@@ -110,6 +110,10 @@ function normalizeTime(name, code) {
   }
   if ((m = n.match(/(\d{4})年度/))) return `${m[1]}-12`;
   if ((m = n.match(/(\d{4})年/))) return `${m[1]}-12`;
+  // 数字のみの名称（鉱工業指数など）: YYYYMM=月次, YYYYQ=四半期, YYYY=年次
+  if (/^\d{6}$/.test(n)) return `${n.slice(0, 4)}-${n.slice(4, 6)}`;
+  if ((m = n.match(/^(\d{4})([1-4])$/))) return `${m[1]}-${["03", "06", "09", "12"][m[2] - 1]}`;
+  if (/^\d{4}$/.test(n)) return `${n}-12`;
   // フォールバック: コード先頭4桁を年とみなす
   const c = String(code || "").trim();
   if (/^\d{4}/.test(c)) return `${c.slice(0, 4)}-12`;
@@ -126,7 +130,10 @@ function timeRank(name, code) {
   if (/第\s*[1-4１-４Ⅰ-Ⅳ]\s*四半期/.test(n)) return 3;          // 四半期
   if (/(\d{4})年度/.test(n)) return 2;                           // 年度
   if (/(\d{4})年/.test(n)) return 1;                             // 暦年
-  return 0;                                                      // 不明（コード先頭4桁）
+  if (/^\d{6}$/.test(n)) return 4;                              // YYYYMM 月次（数字のみ）
+  if (/^\d{4}[1-4]$/.test(n)) return 3;                          // YYYYQ 四半期（数字のみ）
+  if (/^\d{4}$/.test(n)) return 1;                              // YYYY 年次（数字のみ）
+  return 0;                                                      // 不明（ウエイト行など）→最細頻度に劣後し除外
 }
 function z2(s) { return String(s).padStart(2, "0"); }
 function toAsciiDigit(s) {
