@@ -1,24 +1,22 @@
 # 政府統計（e-Stat 本体API）チャートに表示する系列の定義リスト。
 # このファイルが「収集」と「表示」の単一ソース。update_goj.js はここに列挙された
-# 系列だけを getStatsData で取得し、data/goj/<カテゴリ>.csv（ワイド形式）と
+# 系列だけを getStatsData で取得し、data/goj/<ファイル>.csv（ワイド形式）と
 # data/goj/_catalog.csv を出力する。
 #
 # 列の意味:
-#   表示名     … チャートのプルダウン/凡例に出す名前（自由・日本語可。カテゴリ内で一意に）
-#   カテゴリ   … 物価 / 企業業績 / 家計・消費 … 等の大分類。data/goj/<カテゴリ>.csv のファイル名になる
-#   統計表ID   … e-Stat の statsDataId（getStatsList で調べた統計表ID）
-#   分類コード … その表から1系列に絞るための分類事項コード。複数は「;」で連結。
-#                例: cat01=001  または  cat01=001;cat02=00  （area/timeは指定不要）
-#                ※省略可。省略時は表内に系列が1つだけであることが前提。
-#   集約       … last=期末値 / sum=期間合計（水準系の指数・物価は last 推奨）
+#   表示名     … チャートのプルダウン/凡例に出す名前（自由・日本語可。一意に）
+#   カテゴリ   … 物価 / 企業業績 … 等の大分類（プルダウンのグループ見出し。日本語OK）
+#   ファイル   … 保存CSVのファイル名（半角英数。例 cpi → data/goj/cpi.csv）。日本語不可
+#   統計表ID   … e-Stat の statsDataId（getStatsList / search_goj.js で調べる）
+#   分類コード … その表から1系列に絞る分類事項コード。複数は「;」連結。例 cat01=001
+#                ※省略可。省略時は表内に系列が1つだけである前提。
+#   集約       … last=期末値 / sum=期間合計（指数・物価は last 推奨）
 #
-# ※ e-Stat 本体APIはアプリケーションID(appId)が必要です。GitHub Actions では
-#    シークレット ESTAT_APPID を設定してください（.github/workflows/update_goj.yml）。
-#
-# まずは物価(CPI)だけ。統計表ID・分類コードを記入したら教えてください。1本通してから順次拡大します。
-表示名,カテゴリ,統計表ID,分類コード,集約
-総合CPI,物価,,,last
-コアCPI,物価,,,last
-コアコアCPI,物価,,,last
-財価格指数,物価,,,last
-サービス価格指数,物価,,,last
+# ※ appId が必要。GitHub Actions のシークレット ESTAT_APPID を設定。
+# まずは物価(CPI)。統計表ID・分類コードを記入したら教えてください。
+表示名,カテゴリ,ファイル,統計表ID,分類コード,集約
+総合CPI,物価,cpi,,,last
+コアCPI,物価,cpi,,,last
+コアコアCPI,物価,cpi,,,last
+財価格指数,物価,cpi,,,last
+サービス価格指数,物価,cpi,,,last

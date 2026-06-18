@@ -45,6 +45,12 @@ function httpsGetJson(pathWithQuery) {
   });
 }
 
+// カテゴリ名等から半角英数のファイル名スラッグを作る（ファイル列未指定時の保険）。
+function asciiSlug(s) {
+  const t = String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return t || "cat";
+}
+
 function csvEscape(v) {
   if (v === null || v === undefined) return "";
   const s = String(v);
@@ -58,6 +64,7 @@ function parseList(text) {
   const header = lines[0].split(",").map((h) => h.replace(/^﻿/, "").replace(/^"+|"+$/g, "").trim());
   const iName = header.indexOf("表示名");
   const iCat = header.indexOf("カテゴリ");
+  const iFile = header.indexOf("ファイル");
   const iId = header.indexOf("統計表ID");
   const iCls = header.indexOf("分類コード");
   const iAgg = header.indexOf("集約");
@@ -67,8 +74,9 @@ function parseList(text) {
     const cols = parseCsvLine(lines[i]).map((c) => c.replace(/^"+|"+$/g, "").trim());
     const name = cols[iName], cat = cols[iCat], id = cols[iId];
     if (!name || !cat || !id) continue;
+    const file = (iFile >= 0 ? (cols[iFile] || "") : "") || asciiSlug(cat);
     rows.push({
-      name, cat, statsDataId: id,
+      name, cat, file, statsDataId: id,
       cls: iCls >= 0 ? (cols[iCls] || "") : "",
       agg: (iAgg >= 0 ? (cols[iAgg] || "") : "").toLowerCase() === "sum" ? "sum" : "last",
     });
@@ -200,24 +208,24 @@ async function main() {
   const list = parseList(fs.readFileSync(LIST_FILE, "utf8"));
   if (list.length === 0) { console.error("gojlist.csv に有効な系列がありません（統計表IDを記入してください）。"); process.exit(1); }
 
-  // カテゴリ単位にまとめる（順序保持）
-  const byCat = new Map();
-  for (const e of list) { if (!byCat.has(e.cat)) byCat.set(e.cat, []); byCat.get(e.cat).push(e); }
+  // ファイル単位にまとめる（順序保持）。表示グループはカテゴリ。
+  const byFile = new Map();
+  for (const e of list) { if (!byFile.has(e.file)) byFile.set(e.file, []); byFile.get(e.file).push(e); }
 
-  console.log(`e-Stat 政府統計の取得を開始します（系列数=${list.length}, カテゴリ数=${byCat.size}）`);
+  console.log(`e-Stat 政府統計の取得を開始します（系列数=${list.length}, ファイル数=${byFile.size}）`);
   const catalog = [];
 
-  for (const [cat, entries] of byCat) {
+  for (const [file, entries] of byFile) {
     const seriesData = []; // {name, map}
     for (const e of entries) {
       try {
         const r = await fetchSeries(e);
-        if (r.valueMap.size === 0) { console.warn(`⚠ ${cat}/${e.name}: データ0件（統計表ID/分類コードを確認）`); }
+        if (r.valueMap.size === 0) { console.warn(`⚠ ${e.cat}/${e.name}: データ0件（統計表ID/分類コードを確認）`); }
         seriesData.push({ name: e.name, map: r.valueMap });
-        catalog.push({ name: e.name, cat, statsDataId: e.statsDataId, unit: r.unit, table: r.tableName, agg: e.agg });
-        console.log(`✅ ${cat}/${e.name}: ${r.valueMap.size}期`);
+        catalog.push({ name: e.name, cat: e.cat, file, statsDataId: e.statsDataId, unit: r.unit, table: r.tableName, agg: e.agg });
+        console.log(`✅ ${e.cat}/${e.name}: ${r.valueMap.size}期`);
       } catch (err) {
-        console.error(`❌ ${cat}/${e.name}: ${err.message}`);
+        console.error(`❌ ${e.cat}/${e.name}: ${err.message}`);
         seriesData.push({ name: e.name, map: new Map() });
       }
       await sleep(SLEEP_MS);
@@ -234,11 +242,11 @@ async function main() {
       for (const s of seriesData) row.push(s.map.has(d) ? s.map.get(d) : "");
       lines.push(row.map(csvEscape).join(","));
     }
-    fs.writeFileSync(path.join(OUT_DIR, `${cat}.csv`), lines.join("\n") + "\n", "utf8");
-    console.log(`📄 data/goj/${cat}.csv（系列${names.length} / 期間${sortedDates.length}）`);
+    fs.writeFileSync(path.join(OUT_DIR, `${file}.csv`), lines.join("\n") + "\n", "utf8");
+    console.log(`📄 data/goj/${file}.csv（系列${names.length} / 期間${sortedDates.length}）`);
   }
 
-  const catHeader = ["name", "cat", "statsDataId", "unit", "table", "agg"];
+  const catHeader = ["name", "cat", "file", "statsDataId", "unit", "table", "agg"];
   const catLines = [catHeader.join(",")];
   for (const c of catalog) catLines.push(catHeader.map((k) => csvEscape(c[k])).join(","));
   fs.writeFileSync(path.join(OUT_DIR, "_catalog.csv"), catLines.join("\n") + "\n", "utf8");
