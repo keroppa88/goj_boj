@@ -2338,32 +2338,38 @@ async function loadGojData(){
   let catalog = [];
   try{ catalog = parseKeyedCsv(await fetchTextUtf8("./data/goj/_catalog.csv")); }catch(e){ return; }
   if(!catalog.length) return;
-  const catOrder = [];
+  const catOrder = [];           // カテゴリ(表示見出し)の出現順
+  const catFile = new Map();      // カテゴリ -> 代表ファイル名
   const aggByName = new Map();
+  const fileByName = new Map();   // 表示名 -> ファイル名（ASCII）
   for(const o of catalog){
     const name = o.name || ""; const cat = o.cat || ""; if(!name || !cat) continue;
+    const file = o.file || cat;  // 旧形式(file列なし)との後方互換
     aggByName.set(name, (o.agg === "sum") ? "sum" : "last");
-    if(!gojByCat.has(cat)){ gojByCat.set(cat, []); catOrder.push(cat); }
+    fileByName.set(name, file);
+    if(!gojByCat.has(cat)){ gojByCat.set(cat, []); catOrder.push(cat); catFile.set(cat, file); }
   }
+  // 必要なファイルを一度ずつ読み込む
+  const files = Array.from(new Set(Array.from(fileByName.values())));
   const fileData = new Map();
-  for(const cat of catOrder){
-    try{ fileData.set(cat, parseBojWide(await fetchTextUtf8(`./data/goj/${encodeURIComponent(cat)}.csv`))); }catch(e){ /* skip */ }
+  for(const f of files){
+    try{ fileData.set(f, parseBojWide(await fetchTextUtf8(`./data/goj/${encodeURIComponent(f)}.csv`))); }catch(e){ /* skip */ }
   }
   const seen = new Set();
   for(const o of catalog){
     const name = o.name || ""; const cat = o.cat || ""; if(!name || !cat) continue;
-    const fd = fileData.get(cat); if(!fd) continue;
+    const fd = fileData.get(fileByName.get(name)); if(!fd) continue;
     const series = fd.get(name); if(!series || !series.length) continue;
     if(!seen.has(name)){ gojAvail.push(name); seen.add(name); }
     gojAgg.set(name, aggByName.get(name) || "last");
     const arr = gojByCat.get(cat); if(!arr.includes(name)) arr.push(name);
     for(const pt of series) gojRows.push({ date: pt.date, name, value: pt.value });
   }
-  gojCats = catOrder.map(cat => ({ file: cat, label: cat }));
+  gojCats = catOrder.map(cat => ({ file: catFile.get(cat), label: cat }));
 }
 function buildGojOptions(){
   gojOptions = [];
-  for(const c of gojCats){ for(const name of (gojByCat.get(c.file) || [])){ gojOptions.push({ value: name, text: c.label + "・" + name }); } }
+  for(const c of gojCats){ for(const name of (gojByCat.get(c.label) || [])){ gojOptions.push({ value: name, text: c.label + "・" + name }); } }
 }
 
 /* ========= main load ========= */
