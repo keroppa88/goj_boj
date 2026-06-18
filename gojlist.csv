@@ -1,24 +1,65 @@
-# 政府統計（e-Stat 本体API）チャートに表示する系列の定義リスト。
-# このファイルが「収集」と「表示」の単一ソース。update_goj.js はここに列挙された
-# 系列だけを getStatsData で取得し、data/goj/<カテゴリ>.csv（ワイド形式）と
-# data/goj/_catalog.csv を出力する。
-#
-# 列の意味:
-#   表示名     … チャートのプルダウン/凡例に出す名前（自由・日本語可。カテゴリ内で一意に）
-#   カテゴリ   … 物価 / 企業業績 / 家計・消費 … 等の大分類。data/goj/<カテゴリ>.csv のファイル名になる
-#   統計表ID   … e-Stat の statsDataId（getStatsList で調べた統計表ID）
-#   分類コード … その表から1系列に絞るための分類事項コード。複数は「;」で連結。
-#                例: cat01=001  または  cat01=001;cat02=00  （area/timeは指定不要）
-#                ※省略可。省略時は表内に系列が1つだけであることが前提。
-#   集約       … last=期末値 / sum=期間合計（水準系の指数・物価は last 推奨）
-#
-# ※ e-Stat 本体APIはアプリケーションID(appId)が必要です。GitHub Actions では
-#    シークレット ESTAT_APPID を設定してください（.github/workflows/update_goj.yml）。
-#
-# まずは物価(CPI)だけ。統計表ID・分類コードを記入したら教えてください。1本通してから順次拡大します。
-表示名,カテゴリ,統計表ID,分類コード,集約
-総合CPI,物価,,,last
-コアCPI,物価,,,last
-コアコアCPI,物価,,,last
-財価格指数,物価,,,last
-サービス価格指数,物価,,,last
+# 政府統計（e-Stat 本体API）収集対象リスト。update_goj.js と index.html の単一ソース。
+# 列: 表示名,カテゴリ,ファイル(半角英数),統計表ID(statsDataId),分類コード(任意 例 cat01=001),集約(last/sum),重要度
+# 統計表ID が空の行は収集スキップ。search_goj.js で調べて記入してください。
+#   ID探し例: ESTAT_APPID=xxx node search_goj.js "消費者物価指数 総合 月次"
+# 重要度は参考用（★の数。1=★,3=★★★）。集約は水準・指数=last、フロー(売上/利益/輸出額等)=必要ならsum。
+表示名,カテゴリ,ファイル,統計表ID,分類コード,集約,重要度
+総合CPI,物価,cpi,,,last,1
+コアCPI,物価,cpi,,,last,3
+コアコアCPI,物価,cpi,,,last,3
+財価格指数,物価,cpi,,,last,2
+サービス価格指数,物価,cpi,,,last,2
+全産業売上高,企業業績,corp,,,last,2
+製造業売上高,企業業績,corp,,,last,2
+非製造業売上高,企業業績,corp,,,last,2
+営業利益,企業業績,corp,,,last,3
+経常利益,企業業績,corp,,,last,3
+設備投資額,企業業績,corp,,,last,3
+ソフトウェア投資額,企業業績,corp,,,last,2
+利益剰余金,企業業績,corp,,,last,3
+現金・預金,企業業績,corp,,,last,2
+消費支出,家計・消費,household,,,last,3
+平均消費性向,家計・消費,household,,,last,2
+実収入,家計・消費,household,,,last,3
+可処分所得,家計・消費,household,,,last,3
+小売業販売額,家計・消費,household,,,last,2
+就業者数,雇用・賃金,labor,,,last,2
+正規雇用者数,雇用・賃金,labor,,,last,2
+非正規雇用者数,雇用・賃金,labor,,,last,2
+完全失業者数,雇用・賃金,labor,,,last,2
+完全失業率,雇用・賃金,labor,,,last,3
+若年失業率,雇用・賃金,labor,,,last,1
+非労働力人口,雇用・賃金,labor,,,last,2
+現金給与総額,雇用・賃金,labor,,,last,3
+実質賃金,雇用・賃金,labor,,,last,3
+所定外労働時間,雇用・賃金,labor,,,last,3
+名目GDP,GDP・需要,gdp,,,last,2
+実質GDP,GDP・需要,gdp,,,last,3
+GDPデフレーター,GDP・需要,gdp,,,last,3
+民間最終消費支出,GDP・需要,gdp,,,last,3
+住宅投資,GDP・需要,gdp,,,last,2
+設備投資,GDP・需要,gdp,,,last,3
+政府最終消費支出,GDP・需要,gdp,,,last,1
+公共投資,GDP・需要,gdp,,,last,2
+輸出,GDP・需要,gdp,,,last,2
+輸入,GDP・需要,gdp,,,last,2
+鉱工業生産指数,生産・製造業,production,,,last,3
+鉱工業出荷指数,生産・製造業,production,,,last,2
+鉱工業在庫指数,生産・製造業,production,,,last,2
+鉱工業在庫率指数,生産・製造業,production,,,last,3
+資本財出荷指数,生産・製造業,production,,,last,3
+電子部品・デバイス工業生産指数,生産・製造業,production,,,last,2
+自動車工業生産指数,生産・製造業,production,,,last,2
+CI先行指数,景気循環,cycle,,,last,3
+CI一致指数,景気循環,cycle,,,last,2
+CI遅行指数,景気循環,cycle,,,last,1
+輸出額,貿易・外需,trade,,,last,3
+輸入額,貿易・外需,trade,,,last,2
+貿易収支,貿易・外需,trade,,,last,2
+経常収支,貿易・外需,trade,,,last,2
+第一次所得収支,貿易・外需,trade,,,last,1
+新設住宅着工戸数,不動産・建設,realestate,,,last,2
+貸家着工戸数,不動産・建設,realestate,,,last,1
+分譲住宅着工戸数,不動産・建設,realestate,,,last,1
+企業倒産件数,信用・企業体力,credit,,,last,2
+倒産負債総額,信用・企業体力,credit,,,last,1
