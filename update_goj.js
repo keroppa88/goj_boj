@@ -118,10 +118,30 @@ function normalizeTime(name, code) {
   }
   if ((m = n.match(/(\d{4})年度/))) return `${m[1]}-12`;
   if ((m = n.match(/(\d{4})年/))) return `${m[1]}-12`;
+  // 数字のみの名称（鉱工業指数など）: YYYYMM=月次, YYYYQ=四半期, YYYY=年次
+  if (/^\d{6}$/.test(n)) return `${n.slice(0, 4)}-${n.slice(4, 6)}`;
+  if ((m = n.match(/^(\d{4})([1-4])$/))) return `${m[1]}-${["03", "06", "09", "12"][m[2] - 1]}`;
+  if (/^\d{4}$/.test(n)) return `${n}-12`;
   // フォールバック: コード先頭4桁を年とみなす
   const c = String(code || "").trim();
   if (/^\d{4}/.test(c)) return `${c.slice(0, 4)}-12`;
   return n || c;
+}
+// 時間軸の頻度ランク（大きいほど細かい）。同一系列に月次・四半期・年度・暦年が
+// 混在する表で、最も細かい頻度だけを残すために使う。これを入れないと normalizeTime が
+// 「YYYY年」「YYYY年度」を「YYYY-12」に丸め、12月の月次値（や第4四半期値）を年次値で
+// 上書きしてしまう。
+function timeRank(name, code) {
+  const n = String(name || "").trim();
+  if (/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/.test(n)) return 5; // 日次
+  if (/(\d{4})年\s*(\d{1,2})月/.test(n)) return 4;               // 月次
+  if (/第\s*[1-4１-４Ⅰ-Ⅳ]\s*四半期/.test(n)) return 3;          // 四半期
+  if (/(\d{4})年度/.test(n)) return 2;                           // 年度
+  if (/(\d{4})年/.test(n)) return 1;                             // 暦年
+  if (/^\d{6}$/.test(n)) return 4;                              // YYYYMM 月次（数字のみ）
+  if (/^\d{4}[1-4]$/.test(n)) return 3;                          // YYYYQ 四半期（数字のみ）
+  if (/^\d{4}$/.test(n)) return 1;                              // YYYY 年次（数字のみ）
+  return 0;                                                      // 不明（ウエイト行など）→最細頻度に劣後し除外
 }
 function z2(s) { return String(s).padStart(2, "0"); }
 function toAsciiDigit(s) {
@@ -134,7 +154,8 @@ function asArray(x) { return Array.isArray(x) ? x : (x == null ? [] : [x]); }
 // 1系列分を getStatsData で取得し、{date->value} と メタ情報を返す。
 async function fetchSeries(entry) {
   const filter = parseClassFilter(entry.cls);
-  const valueMap = new Map();
+  const collected = []; // {date, num, rank}
+  let maxRank = -1;
   let timeMeta = new Map(); // time code -> name
   let unit = "", tableName = "", freq = "";
   let startPosition = null, guard = 0;
@@ -187,8 +208,11 @@ async function fetchSeries(entry) {
       const num = Number(String(raw).replace(/,/g, ""));
       if (!Number.isFinite(num)) continue;
       if (!unit && v["@unit"]) unit = String(v["@unit"]);
-      const date = normalizeTime(timeMeta.get(tcode), tcode);
-      valueMap.set(date, num);
+      const tname = timeMeta.get(tcode);
+      const rank = timeRank(tname, tcode);
+      const date = normalizeTime(tname, tcode);
+      collected.push({ date, num, rank });
+      if (rank > maxRank) maxRank = rank;
     }
 
     const rinf = sd.RESULT_INF || {};
@@ -197,6 +221,10 @@ async function fetchSeries(entry) {
     startPosition = nextKey;
     await sleep(SLEEP_MS);
   }
+
+  // 最も細かい頻度の観測値だけを採用（年次・年度の丸めによる月末値の上書きを防ぐ）。
+  const valueMap = new Map();
+  for (const r of collected) if (r.rank === maxRank) valueMap.set(r.date, r.num);
 
   return { valueMap, unit, tableName, freq };
 }
