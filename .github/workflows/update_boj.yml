@@ -1,9 +1,8 @@
 name: Update BOJ
 on:
-  # 当面は手動実行のみ。安定後に下のスケジュールを有効化する。
   workflow_dispatch:
-  # schedule:
-  #   - cron: '0 11 * * 5'  # JST 20:00（UTC 11:00）毎週金曜
+  schedule:
+    - cron: '0 23 * * 5'  # 毎週土曜 JST 08:00（UTC 金曜 23:00）
 permissions:
   contents: write
 jobs:

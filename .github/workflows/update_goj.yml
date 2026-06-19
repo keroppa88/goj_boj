@@ -1,9 +1,8 @@
 name: Update GOJ (e-Stat)
 on:
-  # 当面は手動実行のみ。安定後に下のスケジュールを有効化する。
   workflow_dispatch:
-  # schedule:
-  #   - cron: '0 12 * * 5'  # JST 21:00（UTC 12:00）毎週金曜
+  schedule:
+    - cron: '0 21 * * 5'  # 毎週土曜 JST 06:00（UTC 金曜 21:00）
 permissions:
   contents: write
 jobs:
