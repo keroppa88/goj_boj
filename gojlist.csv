@@ -30,9 +30,9 @@
 完全失業率,雇用・賃金,labor,0003005865,tab=02;cat01=000;cat02=08;cat03=0;area=00000,last,3
 若年失業率,雇用・賃金,labor,0002060004,tab=02;cat01=000;cat02=0;cat03=08;cat04=01;area=00000,last,1
 非労働力人口,雇用・賃金,labor,0003005798,tab=01;cat01=000;cat02=09;cat03=0;area=00000,last,2
-現金給与総額,雇用・賃金,labor,,,last,3
-実質賃金,雇用・賃金,labor,,,last,3
-所定外労働時間,雇用・賃金,labor,,,last,3
+現金給与総額,雇用・賃金,kinro,,,last,3
+実質賃金,雇用・賃金,kinro,,,last,3
+所定外労働時間,雇用・賃金,kinro,,,last,3
 名目GDP,GDP・需要,gdp,0004049751,tab=11;cat01=47,last,2
 実質GDP,GDP・需要,gdp,0004049756,tab=11;cat01=67,last,3
 GDPデフレーター,GDP・需要,gdp,0004049759,tab=19;cat01=67,last,3

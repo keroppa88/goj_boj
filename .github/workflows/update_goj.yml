@@ -20,6 +20,11 @@ jobs:
         env:
           ESTAT_APPID: ${{ secrets.ESTAT_APPID }}
 
+      # 毎月勤労統計（e-Statファイル配信CSV）データ更新。
+      # ※ update_goj.js が _catalog.csv を再生成した後に実行し、kinro 3系列を追記する。
+      - name: Update_kinro
+        run: node update_kinro.js
+
       # コミット＆プッシュ
       - name: Commit and Push
         run: |
