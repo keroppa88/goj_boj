@@ -2092,7 +2092,7 @@ function bindSelects(){
       tseKeys[i] = sel.value || "";
       // 何かを選択したら表示をONにする
       if(tseKeys[i]) tseVisible[i] = true;
-      try{ localStorage.setItem("tseKeys_v3", JSON.stringify(tseKeys)); }catch(e){}
+      try{ localStorage.setItem("tseKeys_v4", JSON.stringify(tseKeys)); }catch(e){}
       try{ localStorage.setItem("tseVisible_v2", JSON.stringify(tseVisible)); }catch(e){}
       // 選択後の表示をプレフィックスなしに更新
       updateSelectDisplay(sel);
@@ -2128,7 +2128,7 @@ function bindSelects(){
     sel.addEventListener("change", ()=>{
       barKeys[i] = sel.value || "";
       if(barKeys[i]) barVisible[i] = true;
-      try{ localStorage.setItem("barKeys_v1", JSON.stringify(barKeys)); }catch(e){}
+      try{ localStorage.setItem("barKeys_v2", JSON.stringify(barKeys)); }catch(e){}
       try{ localStorage.setItem("barVisible_v1", JSON.stringify(barVisible)); }catch(e){}
       updateSelectDisplay(sel);
       redrawAll();
@@ -2516,7 +2516,7 @@ async function autoLoad(){
   }catch(e){}
 
   try{
-    const raw = localStorage.getItem("tseKeys_v3");
+    const raw = localStorage.getItem("tseKeys_v4");
     if(raw){
       const arr = JSON.parse(raw);
       if(Array.isArray(arr)){
@@ -2547,7 +2547,7 @@ async function autoLoad(){
 
   // 増減チャートの選択状態を復元
   try{
-    const raw = localStorage.getItem("barKeys_v1");
+    const raw = localStorage.getItem("barKeys_v2");
     if(raw){
       const arr = JSON.parse(raw);
       if(Array.isArray(arr)){
@@ -2624,14 +2624,20 @@ async function autoLoad(){
     }
   }
 
-  // 政府統計①のデフォルト：先頭から最大3系列
+  // 政府統計①のデフォルト：お薦め「物価と賃金」（物価と名目・実質賃金の比較）
   if(!tseKeys.some(k => k)){
-    for(let i=0; i<Math.min(3, gojAvail.length); i++) tseKeys[i] = gojAvail[i];
+    const rec = ["総合CPI", "コアCPI", "現金給与総額", "実質賃金"];
+    let n = 0;
+    for(const name of rec){ if(gojAvail.includes(name)) tseKeys[n++] = name; }
+    if(n === 0){ for(let i=0; i<Math.min(3, gojAvail.length); i++) tseKeys[i] = gojAvail[i]; }
   }
 
-  // 政府統計②のデフォルト：先頭から最大3系列
+  // 政府統計②のデフォルト：お薦め「景気・生産・雇用」（景気循環の俯瞰）
   if(!barKeys.some(k => k)){
-    for(let i=0; i<Math.min(3, gojAvail.length); i++) barKeys[i] = gojAvail[i];
+    const rec = ["実質GDP", "鉱工業生産指数", "CI一致指数", "完全失業率"];
+    let n = 0;
+    for(const name of rec){ if(gojAvail.includes(name)) barKeys[n++] = name; }
+    if(n === 0){ for(let i=0; i<Math.min(3, gojAvail.length); i++) barKeys[i] = gojAvail[i]; }
   }
 
   const baseDatesLoaded = tseDates.length > 0 ? tseDates : globalDates;
