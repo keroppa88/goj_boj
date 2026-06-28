@@ -25,7 +25,7 @@ const PAGE_LIMIT = 100000; // 1リクエストの最大取得件数
 const SLEEP_MS = 1500;     // 高頻度アクセス回避
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function httpsGetJson(pathWithQuery) {
+function httpsGetJsonOnce(pathWithQuery) {
   return new Promise((resolve, reject) => {
     https.get(
       { host: HOST, path: pathWithQuery, headers: { "User-Agent": "goj_boj-estat/1.0", "Accept": "application/json" } },
@@ -43,6 +43,23 @@ function httpsGetJson(pathWithQuery) {
       }
     ).on("error", reject);
   });
+}
+
+// 一過性のネットワーク障害(DNS解決失敗・5xx・タイムアウト等)に対して指数バックオフで再試行する。
+async function httpsGetJson(pathWithQuery) {
+  let lastErr;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      return await httpsGetJsonOnce(pathWithQuery);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      // 4xx(認証・パラメータ誤り等)は再試行しても無駄なので即時失敗
+      if (/HTTP 4\d\d/.test(msg)) throw e;
+      await sleep(1000 * Math.pow(2, attempt)); // 1s,2s,4s,8s,16s
+    }
+  }
+  throw lastErr;
 }
 
 // カテゴリ名等から半角英数のファイル名スラッグを作る（ファイル列未指定時の保険）。
@@ -116,6 +133,11 @@ function normalizeTime(name, code) {
     const q = "1234".indexOf(toAsciiDigit(m[2])) + 1 || 1;
     return `${m[1]}-${["03", "06", "09", "12"][q - 1]}`;
   }
+  // 四半期のレンジ表記: 「YYYY年1～3月期」(国民経済計算) /「YYYY年1 - 3 月」(法人企業統計)。
+  // 開始月から四半期を判定し期末月(03/06/09/12)に正規化する。
+  if ((m = n.match(/(\d{4})年\s*(\d{1,2})\s*[-－—~〜～]\s*\d{1,2}\s*月/))) {
+    return `${m[1]}-${["03", "06", "09", "12"][Math.floor((Number(m[2]) - 1) / 3)] || "12"}`;
+  }
   if ((m = n.match(/(\d{4})年度/))) return `${m[1]}-12`;
   if ((m = n.match(/(\d{4})年/))) return `${m[1]}-12`;
   // 数字のみの名称（鉱工業指数など）: YYYYMM=月次, YYYYQ=四半期, YYYY=年次
@@ -136,6 +158,7 @@ function timeRank(name, code) {
   if (/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/.test(n)) return 5; // 日次
   if (/(\d{4})年\s*(\d{1,2})月/.test(n)) return 4;               // 月次
   if (/第\s*[1-4１-４Ⅰ-Ⅳ]\s*四半期/.test(n)) return 3;          // 四半期
+  if (/(\d{4})年\s*\d{1,2}\s*[-－—~〜～]\s*\d{1,2}\s*月/.test(n)) return 3; // 四半期(レンジ表記)
   if (/(\d{4})年度/.test(n)) return 2;                           // 年度
   if (/(\d{4})年/.test(n)) return 1;                             // 暦年
   if (/^\d{6}$/.test(n)) return 4;                              // YYYYMM 月次（数字のみ）
